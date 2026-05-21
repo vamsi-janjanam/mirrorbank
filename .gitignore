@@ -1,2 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.uv/
+
+# Data — never commit real datasets
+data/raw/
+data/synthetic/
+outputs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Weights & Biases
+wandb/
+
+# OS
 .DS_Store
+*.swp
+
+# Env
+.env
+.env.*
+
+# Claude
 CLAUDE.md
