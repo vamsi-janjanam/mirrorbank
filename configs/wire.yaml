@@ -1,0 +1,30 @@
+instrument: wire
+
+dataset:
+  name: wire
+  target_column: is_suspicious
+  datetime_columns: [timestamp]
+
+generation:
+  model: dp_ctgan
+  n_rows: 100_000                    # Wires are low volume
+  batch_size: 512
+  epochs: 150
+  max_grad_norm: 1.0
+
+privacy:
+  epsilon: 3.0
+  delta: 1.0e-5
+  preset: balanced
+  accounting: rdp
+
+evaluation:
+  n_shadow_models: 10
+  attack_model: lightgbm
+  tstr_classifier: xgboost
+  ks_pass_rate_target: 0.80
+  corr_distance_target: 0.15
+  utility_ratio_target: 0.85         # Very imbalanced — fewer fraud examples
+  mia_auc_target: 0.55
+  # Wire-specific: Fedwire is closed on weekends
+  require_zero_weekend_volume: true

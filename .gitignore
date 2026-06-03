@@ -27,5 +27,3 @@ wandb/
 .env
 .env.*
 
-# Claude
-CLAUDE.md

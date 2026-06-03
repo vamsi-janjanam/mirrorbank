@@ -1,0 +1,31 @@
+instrument: credit_card
+
+dataset:
+  name: tabformer
+  target_column: "Is Fraud?"
+  datetime_columns: [Timestamp]
+  categorical_columns: ["Use Chip", "Merchant Name", MCC]
+  exclude_columns: [User, Card]       # PII — excluded from generation
+
+generation:
+  model: dp_ctgan                     # dp_ctgan | dp_tabddpm
+  n_rows: 1_000_000
+  batch_size: 4096
+  epochs: 300
+  noise_multiplier: 1.1               # σ — auto-calibrated if omitted
+  max_grad_norm: 1.0                  # C — gradient clipping norm
+
+privacy:
+  epsilon: 3.0
+  delta: 1.0e-5
+  preset: balanced                    # tight | balanced | loose | demo
+  accounting: rdp
+
+evaluation:
+  n_shadow_models: 10
+  attack_model: lightgbm
+  tstr_classifier: xgboost
+  ks_pass_rate_target: 0.80
+  corr_distance_target: 0.15
+  utility_ratio_target: 0.90
+  mia_auc_target: 0.55

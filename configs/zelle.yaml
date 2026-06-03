@@ -1,0 +1,32 @@
+instrument: zelle
+
+dataset:
+  name: zelle
+  target_column: is_disputed
+  datetime_columns: [timestamp]
+
+generation:
+  model: dp_ctgan
+  n_rows: 500_000
+  batch_size: 2048
+  epochs: 200
+  max_grad_norm: 1.0
+
+privacy:
+  epsilon: 3.0
+  delta: 1.0e-5
+  preset: balanced
+  accounting: rdp
+
+evaluation:
+  n_shadow_models: 10
+  attack_model: lightgbm
+  tstr_classifier: xgboost
+  ks_pass_rate_target: 0.80
+  corr_distance_target: 0.15
+  utility_ratio_target: 0.90
+  mia_auc_target: 0.55
+  # Zelle-specific: hard cap
+  max_transaction_amount: 2500
+  expected_dispute_rate_min: 0.010
+  expected_dispute_rate_max: 0.020

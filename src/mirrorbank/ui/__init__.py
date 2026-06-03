@@ -1,0 +1,1 @@
+"""Streamlit privacy dashboard."""
