@@ -1,0 +1,42 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+# Data
+polars = ">=1.0"
+pyarrow = ">=16"
+# Evaluation
+scipy = ">=1.13"
+scikit-learn = ">=1.5"
+xgboost = ">=2.0"
+lightgbm = ">=4.0"
+# UI
+streamlit = ">=1.35"
+# Config
+pyyaml = ">=6.0"
+# CLI output
+rich = ">=13.7"
+
+[dev-packages]
+pytest = ">=9.0"
+pytest-cov = ">=7.0"
+ruff = "*"
+
+[generate]
+# Full DP generation — install with: pipenv install --categories generate
+torch = ">=2.3"
+opacus = ">=1.5"
+sdv = ">=1.14"
+
+[release]
+# Release artifacts — install with: pipenv install --categories release
+reportlab = ">=4.2"
+jinja2 = ">=3.1"
+
+[requires]
+python_version = "3.11"
+
+[pipenv]
+allow_prereleases = false

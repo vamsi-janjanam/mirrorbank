@@ -4,35 +4,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Mirrorbank is a differentially private synthetic financial data generator. Given a sensitive tabular dataset (e.g., credit card transactions), it produces a synthetic CSV, a privacy certificate (ε, δ values + MIA audit result), and a utility scorecard (KS tests, TSTR AUC). The hero metric: generate 1M synthetic transactions at ε=3 in under 10 minutes, with a fraud classifier trained on synthetic data reaching ≥90% of real-data AUC, and membership inference attack accuracy below 53%.
+Mirrorbank is a differentially private synthetic financial data generator. Given a sensitive tabular dataset, it produces a synthetic CSV, a privacy certificate (ε, δ values + MIA audit result), and a utility scorecard (KS tests, TSTR AUC). Supports six payment instruments: ACH, check, Zelle, wire, credit card, and debit card.
+
+**Hero metric:** Generate 1M synthetic transactions at ε=3 in under 10 minutes, with a fraud classifier trained on synthetic data reaching ≥90% of real-data AUC, and membership inference attack accuracy below 53%.
 
 ## Commands
 
 ```bash
 # Install dependencies
-uv sync
+pipenv install
+
+# Install dev dependencies (pytest, ruff)
+pipenv install --dev
+
+# Install DP generation stack (torch, opacus, sdv)
+pipenv install --categories generate
 
 # Run the Streamlit UI
-uv run streamlit run src/mirrorbank/ui/app.py
+pipenv run streamlit run src/mirrorbank/ui/app.py
 
-# Run the full evaluation gauntlet on a dataset
+# Run the full evaluation gauntlet
 make gauntlet DATASET=tabformer SYNTH=dp_tabddpm_eps3
 
 # Run all tests
-uv run pytest
+pipenv run pytest
 
 # Run a single test file
-uv run pytest tests/test_budget.py
+pipenv run pytest tests/test_budget.py
 
 # Run a single test
-uv run pytest tests/test_budget.py::test_name
+pipenv run pytest tests/test_budget.py::test_name
 
-# Lint
-uv run ruff check src/ tests/
-uv run ruff format src/ tests/
+# Lint / format
+pipenv run ruff check src/ tests/
+pipenv run ruff format src/ tests/
 
-# Docker (recommended for demo)
-docker compose up
+# List available payment instruments
+make instruments
 ```
 
 ## Architecture
@@ -40,48 +48,72 @@ docker compose up
 Mirrorbank is a five-stage pipeline. Each stage produces an artifact consumed by the next.
 
 ### Stage 1 — Ingest and profile (`src/mirrorbank/profile/`)
-`SchemaProfiler` reads the input dataset and infers column types (continuous, categorical, datetime, free-text, identifier), detects likely PII fields, computes per-column statistics, and builds a correlation graph. The profile is the input contract for all downstream stages.
+`SchemaProfiler` reads the input dataset and infers column types (continuous, categorical, datetime, free-text, identifier), detects likely PII fields, computes per-column statistics. When an `InstrumentSchema` is provided, schema-declared kinds take precedence over heuristic inference. The profile is the input contract for all downstream stages.
 
 ### Stage 2 — Dual-track generation (`src/mirrorbank/generate/`)
 Two models run in parallel because no single architecture handles both numerical and text data well.
 
-- **Track A (DP-TabDDPM):** `tabddpm.py` + `dp_trainer.py`. Handles all structured fields (amounts, timestamps, MCC codes, geographic/account/velocity features). Trained with DP-SGD via Opacus — every gradient step injects calibrated Gaussian noise and logs to the privacy accountant.
-- **Track B (LLM narrative engine):** `llm_narrator.py`. Handles free-text fields (merchant names, descriptions). Takes synthetic structured rows from Track A as seeds and prompts the LLM to produce coherent text. **The LLM never sees real data** — it only sees synthetic seeds, so it consumes zero privacy budget. This is a key architectural invariant.
+- **Track A (DP-TabDDPM):** `tabddpm.py` + `dp_trainer.py`. Handles all structured fields. Trained with DP-SGD via Opacus.
+- **Track B (vocab sampler):** `vocab_sampler.py`. Handles free-text fields (merchant names, memos). Takes synthetic rows from Track A as seeds. **Never sees real data — consumes zero privacy budget.** This invariant is enforced at the pipeline level.
 
 `pipeline.py` orchestrates both tracks and merges their outputs.
 
 ### Stage 3 — Privacy budget accountant (`src/mirrorbank/privacy/budget.py`)
-`PrivacyBudget` wraps the training loop. Uses Rényi Differential Privacy (RDP) accounting (tighter than basic composition). Every gradient step charges the budget; training halts when ε is exhausted. Supported presets: ε ∈ {1, 3, 5, 10}, δ = 1e-5.
+`PrivacyBudget` wraps the training loop using Rényi DP (RDP) accounting. Every gradient step charges the budget; training halts (`BudgetExhausted`) when ε is exhausted. `calibrate_noise_multiplier()` auto-solves for σ given (ε, δ, training duration) — users specify ε, not σ. One budget instance per instrument; budgets never compose across instruments.
+
+Presets: `tight` (ε=1), `balanced` (ε=3), `loose` (ε=5), `demo` (ε=10). All use δ=1e-5.
 
 ### Stage 4 — Evaluation gauntlet (`src/mirrorbank/evaluate/`)
-Three independent test batteries, all run via `gauntlet.py`:
-- **Fidelity** (`fidelity.py`): per-column KS tests (target: p > 0.05 for ≥80% of columns), pairwise correlation matrix distance (target: Frobenius norm < 0.15).
+Three independent batteries run via `gauntlet.py`:
+- **Fidelity** (`fidelity.py`): per-column KS tests + correlation matrix distance + instrument business-rule checks (e.g. wires must have zero weekend volume).
 - **Utility** (`utility.py`): TSTR — train XGBoost on synthetic, test on held-out real. Target: `AUC_TSTR / AUC_TRTR ≥ 0.90`.
-- **Privacy** (`mia_audit.py`): shadow-model membership inference attack (Shokri et al. 2017). Train N=10 shadow generative models, build attack classifier, report attack AUC. Target: ≤ 0.55.
+- **Privacy** (`mia_audit.py`): shadow-model MIA (Shokri et al. 2017), implemented from scratch. Target: attack AUC ≤ 0.55.
 
 ### Stage 5 — Release (`src/mirrorbank/release/`)
 Bundles synthetic CSV, privacy certificate PDF, and utility scorecard HTML into a versioned release artifact. The Streamlit UI (`src/mirrorbank/ui/app.py`) provides one-click download.
 
+## Instruments (`src/mirrorbank/instruments/`)
+
+Each payment instrument is a subclass of `InstrumentSchema` declaring its columns, PII flags, and `validate()` rules.
+
+| Instrument | Key statistical constraints |
+|---|---|
+| `ach` | Bimodal amounts; Friday payroll spike; R01 return code is ~40% of returns |
+| `check` | Log-normal amounts; 1–5 day clearing; check washing is dominant fraud type |
+| `zelle` | Hard $2,500 cap enforced in `validate()`; peak 6–10 pm; scam-driven disputes |
+| `wire` | Log-normal heavy tail; **zero weekend volume** (Fedwire closed); BEC fraud |
+| `credit_card` | ~0.17% fraud rate; CNP 10× fraud rate vs card-present |
+| `debit_card` | PIN vs signature distinction; overdraft field; higher fraud rate than credit |
+
+`detect_instrument(df)` auto-detects type from column fingerprints (`sec_code` → ACH, `imad` → wire, etc.).
+
+## Reference data (`src/mirrorbank/reference/`)
+
+Generates syntactically valid but entirely fake identifiers — never DP-trained, assigned post-hoc:
+- **Routing numbers:** 9-digit ABA with correct check-digit (3/7/1 weighted sum)
+- **SWIFT codes:** 11-char BIC (BBBBCCLLXXX format)
+- **ACH trace numbers:** routing[:8] + 7-digit sequence
+- **Fedwire IMAD:** YYYYMMDD + 8-char bank-id + 6-digit sequence
+- **MICR lines:** `|routing|  account  check_number`
+
 ## Key design decisions
 
-- **RDP accounting over basic composition.** Rényi DP gives tighter ε bounds for iterative mechanisms like DP-SGD. Opacus's RDP accountant is the implementation.
-- **LLM outside the privacy boundary.** The narrative engine operates on synthetic seeds only. It does not consume privacy budget. Never pass real records to the LLM.
-- **Diffusion over GANs.** TabDDPM outperforms CTGAN/TVAE on mixed-type tabular data and is more stable under DP-SGD (no adversarial training instability).
-- **MIA is the minimum privacy audit.** The shadow-model attack is implemented from scratch (not a library call) for interview defensibility and extensibility.
+- **RDP over basic composition.** Tighter ε bounds for iterative mechanisms. Opacus's accountant.
+- **LLM/vocab sampler outside the privacy boundary.** Only sees synthetic seeds. Never pass real records to Track B.
+- **Diffusion over GANs.** TabDDPM is more stable under DP-SGD (no adversarial training instability).
+- **MIA implemented from scratch.** Interview-defensible — ~200 lines covering shadow models, attack classifier, and AUC reporting.
+- **Polars throughout** (convert to pandas only at the model boundary). 10–50× faster on 24M-row datasets.
+- **One PrivacyBudget per instrument.** Budgets are independent and never compose across instruments.
 
 ## Datasets
 
 - **IBM TabFormer** (default): 24M credit card transactions. Download instructions in `data/README.md`.
 - **Amex Default Prediction**: 5.5M rows, 190 features. Available on Kaggle.
-- Raw data goes in `data/raw/` (gitignored). Generated outputs go in `data/synthetic/`.
+- Raw data → `data/raw/` (gitignored). Generated outputs → `data/synthetic/`.
 
 ## Config files
 
-Dataset-specific hyperparameters (batch size, noise multiplier, number of training steps, ε target, column type overrides) live in `configs/tabformer.yaml` and `configs/amex.yaml`.
-
-## Observability
-
-Training runs are tracked in Weights & Biases. Every run logs: privacy budget consumed per step, final (ε, δ), fidelity metrics, TSTR AUC, and MIA attack AUC.
+Dataset-specific hyperparameters live in `configs/` (`tabformer.yaml`, `ach.yaml`, `wire.yaml`, `zelle.yaml`). Key fields: `instrument`, `generation.model`, `privacy.epsilon`, `privacy.preset`, `evaluation.*_target`.
 
 ## CI
 

@@ -1,25 +1,40 @@
-.PHONY: test lint fmt gauntlet install
+.PHONY: install install-generate install-release test lint fmt gauntlet instruments
 
 install:
-	uv sync
+	pipenv install
+
+install-dev:
+	pipenv install --dev
+
+# Full DP generation stack (torch, opacus, sdv)
+install-generate:
+	pipenv install --categories generate
+
+# Release artifact stack (reportlab, jinja2)
+install-release:
+	pipenv install --categories release
 
 test:
-	uv run pytest
+	pipenv run pytest
 
 lint:
-	uv run ruff check src/ tests/
+	pipenv run ruff check src/ tests/
 
 fmt:
-	uv run ruff format src/ tests/
+	pipenv run ruff format src/ tests/
 
 # Run the full evaluation gauntlet.
 # Usage: make gauntlet DATASET=tabformer SYNTH=dp_ctgan_eps3
 gauntlet:
-	uv run python -m mirrorbank.evaluate.gauntlet \
+	pipenv run python -m mirrorbank.evaluate.gauntlet \
 	  --real data/raw/$(DATASET)/transactions.csv \
 	  --synth outputs/$(SYNTH)/synthetic_transactions.csv \
 	  --instrument $(DATASET)
 
 # List available instruments
 instruments:
-	uv run python -c "from mirrorbank.instruments.registry import REGISTRY; print('\n'.join(sorted(REGISTRY)))"
+	pipenv run python -c "from mirrorbank.instruments.registry import REGISTRY; print('\n'.join(sorted(REGISTRY)))"
+
+# Launch the Streamlit UI
+ui:
+	pipenv run streamlit run src/mirrorbank/ui/app.py
