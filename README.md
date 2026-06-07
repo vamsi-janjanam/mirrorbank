@@ -205,32 +205,39 @@ release_20240315_ach_eps3_balanced/
 git clone https://github.com/vamsi-janjanam/mirrorbank.git
 cd mirrorbank
 
-# Install dependencies
+# Install core dependencies
 pipenv install
 
 # Install dev tools (pytest, ruff)
 pipenv install --dev
 
-# Run tests
+# Run tests — all 86 should pass
 pipenv run pytest
 
-# Launch the UI
-pipenv run streamlit run src/mirrorbank/ui/app.py
-# Open http://localhost:8501
+# Lint the codebase
+pipenv run ruff check src/ tests/
 
 # List available instruments
 make instruments
 ```
 
+> **UI and CLI are on the roadmap (Week 5–6) and not yet implemented.**
+> The generation pipeline, privacy budget accountant, instrument schemas,
+> reference data generators, and evaluation gauntlet are all functional.
+
 ---
 
 ## Full Dataset Setup
+
+> **The CLI (`mirrorbank generate`) is planned for Week 3 of the roadmap and is not yet implemented.**
+> The commands below show the intended interface.
 
 ### IBM TabFormer — Credit Card (default)
 
 24M credit card transactions. See `data/README.md` for download instructions.
 
 ```bash
+# Planned interface — CLI not yet implemented
 pipenv run python -m mirrorbank.cli generate \
   --input data/raw/tabformer/card_transaction.v1.csv \
   --instrument credit_card \
@@ -243,41 +250,28 @@ pipenv run python -m mirrorbank.cli generate \
 ### ACH, Wire, Zelle
 
 ```bash
-# ACH
+# Planned interface — CLI not yet implemented
 pipenv run python -m mirrorbank.cli generate \
   --input data/raw/ach/transactions.csv \
   --instrument ach \
   --config configs/ach.yaml \
-  --epsilon 3 \
-  --output outputs/ach_eps3
+  --epsilon 3 --output outputs/ach_eps3
 
-# Wire
 pipenv run python -m mirrorbank.cli generate \
   --input data/raw/wire/transactions.csv \
   --instrument wire \
   --config configs/wire.yaml \
-  --epsilon 3 \
-  --output outputs/wire_eps3
+  --epsilon 3 --output outputs/wire_eps3
 
-# Zelle
 pipenv run python -m mirrorbank.cli generate \
   --input data/raw/zelle/transactions.csv \
   --instrument zelle \
   --config configs/zelle.yaml \
-  --epsilon 3 \
-  --output outputs/zelle_eps3
+  --epsilon 3 --output outputs/zelle_eps3
 ```
 
-### Auto-detect instrument from column names
-
-```bash
-# Detects type from column fingerprints:
-# 'sec_code' → ACH  ·  'imad' → wire  ·  'sender_token' → Zelle  ·  'micr_line' → check
-pipenv run python -m mirrorbank.cli generate \
-  --input data/raw/unknown/transactions.csv \
-  --epsilon 3 \
-  --output outputs/auto_eps3
-```
+Instrument type can also be auto-detected from column fingerprints:
+`sec_code` → ACH · `imad` → wire · `sender_token` → Zelle · `micr_line` → check
 
 ---
 
@@ -319,38 +313,28 @@ evaluation:
 ## Running Evaluations
 
 ```bash
-# Full gauntlet
-make gauntlet DATASET=ach SYNTH=dp_ctgan_eps3
-
-# Individual batteries
-pipenv run python -m mirrorbank.evaluate.fidelity \
-  --real data/raw/ach/transactions.csv \
-  --synth outputs/ach_eps3/synthetic_transactions.csv \
-  --instrument ach
-
-pipenv run python -m mirrorbank.evaluate.utility \
-  --real data/raw/ach/transactions.csv \
-  --synth outputs/ach_eps3/synthetic_transactions.csv \
-  --instrument ach --target is_fraud
-
-pipenv run python -m mirrorbank.evaluate.mia_audit \
-  --real data/raw/ach/transactions.csv \
-  --synth outputs/ach_eps3/synthetic_transactions.csv \
-  --n-shadow 10
-
-# Run all tests
+# Run all unit tests (86 passing)
 pipenv run pytest
 
 # Lint / format
 pipenv run ruff check src/ tests/
 pipenv run ruff format src/ tests/
+
+# Full gauntlet via Makefile (requires generator output — planned Week 3)
+make gauntlet DATASET=ach SYNTH=dp_ctgan_eps3
 ```
+
+> Individual CLI batteries (`mirrorbank.evaluate.fidelity`, `utility`, `mia_audit`)
+> are implemented as modules but their `--` argument parsing is planned for Week 3.
+> The underlying Python functions (`run_fidelity`, `run_gauntlet`) are fully usable now.
 
 ---
 
 ## Privacy Dashboard
 
-**Run:** `pipenv run streamlit run src/mirrorbank/ui/app.py`
+> **Planned for Week 5–6 of the roadmap.** `src/mirrorbank/ui/app.py` is not yet implemented.
+
+**Planned run command:** `pipenv run streamlit run src/mirrorbank/ui/app.py`
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -408,6 +392,8 @@ ABA routing numbers and SWIFT BIC codes have rigid check-digit constraints a gen
 
 ## Project Structure
 
+Files marked **[planned]** are on the roadmap but not yet written.
+
 ```
 mirrorbank/
 ├── Pipfile                         # Python dependencies
@@ -416,71 +402,71 @@ mirrorbank/
 ├── pyproject.toml                  # Package metadata, ruff + pytest config
 │
 ├── configs/
-│   ├── tabformer.yaml
-│   ├── ach.yaml
-│   ├── wire.yaml
-│   └── zelle.yaml
+│   ├── tabformer.yaml              # Credit card (IBM TabFormer)
+│   ├── ach.yaml                    # ACH transfers
+│   ├── wire.yaml                   # Wire transfers
+│   └── zelle.yaml                  # Zelle P2P payments
 │
 ├── data/
-│   ├── README.md
-│   ├── sample/
-│   ├── raw/                        # gitignored
-│   └── synthetic/                  # gitignored
+│   ├── README.md                   # Dataset download instructions
+│   ├── sample/                     # Small demo datasets
+│   ├── raw/                        # Full datasets (gitignored)
+│   └── synthetic/                  # Generated outputs (gitignored)
 │
 ├── src/mirrorbank/
-│   ├── instruments/
+│   ├── instruments/                # ✅ Implemented
 │   │   ├── base.py                 # InstrumentSchema, ColumnSpec, ColumnKind
 │   │   ├── registry.py             # REGISTRY + detect_instrument()
-│   │   ├── ach.py
-│   │   ├── check.py
-│   │   ├── zelle.py                # validate() enforces $2,500 cap
-│   │   ├── wire.py                 # validate() enforces zero weekend volume
+│   │   ├── ach.py                  # validate(): zero-amount, return_code consistency
+│   │   ├── check.py                # validate(): return_reason consistency
+│   │   ├── zelle.py                # validate(): $2,500 cap, dispute_reason
+│   │   ├── wire.py                 # validate(): zero weekend volume (Fedwire)
 │   │   ├── credit_card.py
 │   │   └── debit_card.py
 │   │
-│   ├── reference/
-│   │   ├── routing_numbers.py      # ABA check-digit math
-│   │   ├── swift_codes.py          # SWIFT BIC format
+│   ├── reference/                  # ✅ Implemented
+│   │   ├── routing_numbers.py      # ABA check-digit math (3/7/1 weighted sum)
+│   │   ├── swift_codes.py          # SWIFT BIC format (BBBBCCLLXXX)
 │   │   └── identifiers.py          # ACH trace, Fedwire IMAD, MICR, check numbers
 │   │
-│   ├── profile/
-│   │   └── schema_profiler.py
+│   ├── profile/                    # ✅ Implemented
+│   │   └── schema_profiler.py      # SchemaProfiler → DatasetProfile
 │   │
-│   ├── generate/
-│   │   ├── pipeline.py
-│   │   ├── ctgan.py
-│   │   ├── tabddpm.py
-│   │   ├── dp_trainer.py
-│   │   └── vocab_sampler.py
-│   │
-│   ├── privacy/
+│   ├── privacy/                    # ✅ Implemented
 │   │   ├── budget.py               # PrivacyBudget, BudgetConfig, calibrate_noise_multiplier
-│   │   └── certificate.py
+│   │   └── certificate.py          # [planned] PDF privacy certificate
 │   │
-│   ├── evaluate/
-│   │   ├── gauntlet.py
-│   │   ├── fidelity.py
-│   │   ├── utility.py
-│   │   └── mia_audit.py
+│   ├── evaluate/                   # ✅ Partially implemented
+│   │   ├── gauntlet.py             # ✅ Orchestrator (fidelity only; utility+MIA planned)
+│   │   ├── fidelity.py             # ✅ KS tests, correlation distance, instrument checks
+│   │   ├── utility.py              # [planned] TSTR with XGBoost
+│   │   └── mia_audit.py            # [planned] Shadow-model MIA
 │   │
-│   ├── release/
-│   │   ├── bundler.py
-│   │   └── scorecard.py
+│   ├── generate/                   # [planned] Week 3–4
+│   │   ├── pipeline.py             # [planned] Orchestrates Track A + B
+│   │   ├── ctgan.py                # [planned] DP-CTGAN baseline
+│   │   ├── tabddpm.py              # [planned] DP-TabDDPM v2
+│   │   ├── dp_trainer.py           # [planned] Opacus DP-SGD wrapper
+│   │   └── vocab_sampler.py        # [planned] Free-text field sampler (Track B)
 │   │
-│   └── ui/
-│       └── app.py
+│   ├── release/                    # [planned] Week 5
+│   │   ├── bundler.py              # [planned] Packages CSV + PDF + HTML
+│   │   └── scorecard.py            # [planned] HTML utility scorecard
+│   │
+│   └── ui/                         # [planned] Week 5–6
+│       └── app.py                  # [planned] Streamlit dashboard
 │
 ├── tests/
-│   ├── conftest.py                 # Fixtures: one DataFrame per instrument
-│   ├── test_instruments.py
-│   ├── test_reference.py
-│   ├── test_budget.py
-│   ├── test_profiler.py
-│   └── test_fidelity.py
+│   ├── conftest.py                 # Fixtures: one DataFrame per instrument (all 6)
+│   ├── test_instruments.py         # 30 tests: schemas, registry, validate(), detection
+│   ├── test_reference.py           # 15 tests: check-digit math, SWIFT, IMAD, MICR
+│   ├── test_budget.py              # 18 tests: RDP accounting, presets, calibration
+│   ├── test_profiler.py            # 4 tests: column inference, PII detection
+│   └── test_fidelity.py            # 11 tests: KS, correlation, gauntlet orchestrator
 │
 └── .github/
     └── workflows/
-        └── ci.yml
+        └── ci.yml                  # Lint + tests on every PR
 ```
 
 ---
@@ -490,14 +476,15 @@ mirrorbank/
 | Milestone | Status |
 |---|---|
 | 6 instrument schemas (ACH, check, Zelle, wire, credit card, debit card) | ✅ Done |
-| Reference data — routing numbers, SWIFT, IMAD, MICR | ✅ Done |
+| Reference data — routing numbers (check-digit), SWIFT, IMAD, MICR | ✅ Done |
 | `SchemaProfiler` — column type inference + PII detection | ✅ Done |
-| `PrivacyBudget` — RDP accountant + noise calibration | ✅ Done |
-| Fidelity evaluation — KS + correlation + instrument rules | ✅ Done |
-| 48 passing unit tests | ✅ Done |
+| `PrivacyBudget` — RDP accountant + `BudgetExhausted` + noise calibration | ✅ Done |
+| Fidelity evaluation — KS tests + correlation + instrument business rules | ✅ Done |
+| `GauntletReport` orchestrator | ✅ Done |
+| 86 passing unit tests (`pipenv run pytest`) | ✅ Done |
 | DP-CTGAN baseline — Opacus integration, end-to-end pipeline | 🔲 Next |
-| Vocab sampler (Track B) | 🔲 Next |
-| TSTR utility evaluation + MIA audit | 🔲 Next |
+| Vocab sampler (Track B) + CLI entry point | 🔲 Next |
+| TSTR utility evaluation (`utility.py`) + MIA audit (`mia_audit.py`) | 🔲 Next |
 | Streamlit UI with live ε meter | 🔲 Next |
 | Privacy certificate PDF + HTML scorecard | 🔲 Next |
 | DP-TabDDPM upgrade | 🔲 Next |

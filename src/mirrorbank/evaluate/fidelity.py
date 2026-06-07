@@ -48,7 +48,7 @@ def run_fidelity(
     training_cols = (
         schema.training_columns()
         if schema
-        else [c for c in real.columns if real[c].dtype != pl.Utf8]
+        else [c for c in real.columns if real[c].dtype not in (pl.String, pl.Utf8)]
     )
 
     ks_results = _ks_tests(real, synth, training_cols, ks_p_threshold)

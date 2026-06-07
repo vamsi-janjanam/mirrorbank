@@ -1,7 +1,5 @@
 """Tests for reference data generators — check-digit math and format rules."""
 
-import re
-
 import pytest
 
 from mirrorbank.reference.identifiers import (

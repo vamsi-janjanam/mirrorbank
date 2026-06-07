@@ -172,8 +172,8 @@ class SchemaProfiler:
                 return ColumnKind.CATEGORICAL
             return ColumnKind.CONTINUOUS
 
-        # String types
-        if dtype == pl.Utf8 or dtype == pl.String:
+        # String types (pl.String is canonical; pl.Utf8 is a deprecated alias)
+        if dtype in (pl.String, pl.Utf8):
             uniq_frac = n_unique / n_rows if n_rows > 0 else 0
             if uniq_frac >= _MIN_IDENTIFIER_FRAC:
                 return ColumnKind.IDENTIFIER
@@ -200,7 +200,6 @@ class SchemaProfiler:
         stats: dict[str, Any] = {}
         try:
             if kind == ColumnKind.CONTINUOUS:
-                desc = series.drop_nulls().describe()
                 stats = {
                     "min": series.min(),
                     "max": series.max(),

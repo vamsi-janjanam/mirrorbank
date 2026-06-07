@@ -24,26 +24,27 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Install for full DP generation:  uv sync --extra generate
+# Install for full DP generation:  pipenv install --categories generate
 generate = [
     "torch>=2.3",
     "opacus>=1.5",
     "sdv>=1.14",
 ]
-# Install for release artifacts:  uv sync --extra release
+# Install for release artifacts:  pipenv install --categories release
 release = [
     "reportlab>=4.2",
     "jinja2>=3.1",
 ]
-# Install everything:  uv sync --extra all
+# Install everything:  pipenv install --categories generate release
 all = [
     "mirrorbank[generate]",
     "mirrorbank[release]",
     "wandb>=0.17",
 ]
 
-[project.scripts]
-mirrorbank = "mirrorbank.cli:app"
+# Entry point declared but cli.py is not yet implemented (roadmap week 3)
+# [project.scripts]
+# mirrorbank = "mirrorbank.cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -55,6 +56,7 @@ packages = ["src/mirrorbank"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+pythonpath = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

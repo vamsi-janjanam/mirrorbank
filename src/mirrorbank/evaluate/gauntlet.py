@@ -8,7 +8,6 @@ to be certified.
 
 from __future__ import annotations
 
-import concurrent.futures
 from dataclasses import dataclass
 
 import polars as pl

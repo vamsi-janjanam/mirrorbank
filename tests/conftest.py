@@ -102,6 +102,58 @@ def zelle_df(rng: random.Random) -> pl.DataFrame:
 
 
 @pytest.fixture
+def check_df(rng: random.Random) -> pl.DataFrame:
+    n = 150
+    start = datetime(2024, 1, 1)
+    return pl.DataFrame(
+        {
+            "amount": [round(rng.uniform(50, 5000), 2) for _ in range(n)],
+            "date_written": [_random_dt(start, 365, rng) for _ in range(n)],
+            "date_cleared": [_random_dt(start, 365, rng) for _ in range(n)],
+            "days_to_clear": [rng.randint(1, 5) for _ in range(n)],
+            "check_type": [rng.choice(["personal", "business", "cashier"]) for _ in range(n)],
+            "payee_name": [rng.choice(["Landlord LLC", "Acme Supplies", "John Smith"]) for _ in range(n)],
+            "bank_name": [rng.choice(["First National Bank", "City Bank", "Trust Bank"]) for _ in range(n)],
+            "bank_routing": ["021000021"] * n,
+            "check_number": [str(rng.randint(1001, 9999)) for _ in range(n)],
+            "micr_line": [f"|021000021|  {rng.randint(100000000, 999999999)}  {rng.randint(1001,9999)}" for _ in range(n)],
+            "is_returned": [rng.random() < 0.005 for _ in range(n)],
+            "return_reason": [None] * n,
+            "is_fraud": [rng.random() < 0.003 for _ in range(n)],
+            "fraud_type": [None] * n,
+        }
+    )
+
+
+@pytest.fixture
+def debit_card_df(rng: random.Random) -> pl.DataFrame:
+    n = 400
+    start = datetime(2024, 1, 1)
+    mccs = ["5411", "5812", "5814", "7011", "5912", None]
+    return pl.DataFrame(
+        {
+            "amount": [round(rng.uniform(1, 300), 2) for _ in range(n)],
+            "timestamp": [_random_dt(start, 365, rng) for _ in range(n)],
+            "transaction_type": [rng.choice(["purchase", "refund", "atm_withdrawal"]) for _ in range(n)],
+            "mcc_code": [rng.choice(mccs) for _ in range(n)],
+            "merchant_city": [rng.choice(["Dallas", "Phoenix", "Seattle"]) for _ in range(n)],
+            "merchant_state": [rng.choice(["TX", "AZ", "WA"]) for _ in range(n)],
+            "merchant_country": ["US"] * n,
+            "entry_mode": [rng.choice(["pin", "signature", "contactless", "atm"]) for _ in range(n)],
+            "pin_used": [rng.random() < 0.55 for _ in range(n)],  # fingerprint column
+            "card_present": [rng.random() < 0.85 for _ in range(n)],
+            "is_international": [rng.random() < 0.02 for _ in range(n)],
+            "is_overdraft": [rng.random() < 0.03 for _ in range(n)],
+            "overdraft_fee": [None] * n,
+            "response_code": [rng.choice(["00", "00", "00", "51"]) for _ in range(n)],
+            "txn_count_1h": [rng.randint(0, 3) for _ in range(n)],
+            "txn_amount_1h": [round(rng.uniform(0, 300), 2) for _ in range(n)],
+            "is_fraud": [rng.random() < 0.003 for _ in range(n)],
+        }
+    )
+
+
+@pytest.fixture
 def credit_card_df(rng: random.Random) -> pl.DataFrame:
     n = 500
     start = datetime(2024, 1, 1)
