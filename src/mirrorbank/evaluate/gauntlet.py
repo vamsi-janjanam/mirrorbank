@@ -25,11 +25,11 @@ class GauntletReport:
 
     def print_summary(self) -> None:
         status = "✅ PASS" if self.pass_overall else "❌ FAIL"
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  Mirrorbank Gauntlet — {self.instrument.upper()}  {status}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"  Fidelity   {self.fidelity.summary}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
 
 def run_gauntlet(

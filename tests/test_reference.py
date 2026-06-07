@@ -1,18 +1,18 @@
 """Tests for reference data generators — check-digit math and format rules."""
 
-import pytest
-
 from mirrorbank.reference.identifiers import (
-    generate_check_number,
     generate_imad,
     generate_micr_line,
     generate_trace_number,
 )
-from mirrorbank.reference.routing_numbers import generate_routing_number, is_valid_routing_number
+from mirrorbank.reference.routing_numbers import (
+    generate_routing_number,
+    is_valid_routing_number,
+)
 from mirrorbank.reference.swift_codes import generate_swift_code, is_valid_swift_code
 
-
 # ── Routing numbers ───────────────────────────────────────────────────────────
+
 
 def test_routing_number_length():
     for _ in range(50):
@@ -35,12 +35,13 @@ def test_routing_number_passes_check_digit():
 def test_routing_number_known_invalid():
     # 000000000 passes the check-digit math (all zeros → checksum 0 → check 0)
     # but wrong length and non-digits are always invalid
-    assert not is_valid_routing_number("12345678")   # wrong length (8 digits)
+    assert not is_valid_routing_number("12345678")  # wrong length (8 digits)
     assert not is_valid_routing_number("12345678x")  # non-digit character
-    assert not is_valid_routing_number("1234567890") # wrong length (10 digits)
+    assert not is_valid_routing_number("1234567890")  # wrong length (10 digits)
 
 
 # ── SWIFT codes ───────────────────────────────────────────────────────────────
+
 
 def test_swift_code_length():
     for _ in range(50):
@@ -68,6 +69,7 @@ def test_swift_code_ends_xxx():
 
 # ── ACH trace number ──────────────────────────────────────────────────────────
 
+
 def test_trace_number_length():
     tn = generate_trace_number(routing="021000021", sequence=42)
     assert len(tn) == 15, f"Expected 15 chars: {tn!r}"
@@ -88,8 +90,10 @@ def test_trace_number_random_valid():
 
 # ── Fedwire IMAD ──────────────────────────────────────────────────────────────
 
+
 def test_imad_format():
     from datetime import date
+
     imad = generate_imad(txn_date=date(2024, 3, 15), sequence=42)
     assert imad.startswith("20240315"), f"Expected date prefix: {imad!r}"
     assert len(imad) == 8 + 8 + 6  # date + bank_id + sequence
@@ -103,11 +107,16 @@ def test_imad_random_valid():
 
 # ── MICR line ─────────────────────────────────────────────────────────────────
 
+
 def test_micr_line_contains_routing():
-    micr = generate_micr_line(routing="021000021", account="1234567890", check_number="1042")
+    micr = generate_micr_line(
+        routing="021000021", account="1234567890", check_number="1042"
+    )
     assert "021000021" in micr
 
 
 def test_micr_line_structure():
-    micr = generate_micr_line(routing="021000021", account="1234567890", check_number="1042")
+    micr = generate_micr_line(
+        routing="021000021", account="1234567890", check_number="1042"
+    )
     assert micr.startswith("|021000021|")

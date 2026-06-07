@@ -18,9 +18,33 @@ import string
 
 # ISO 3166-1 alpha-2 country codes for countries with significant banking activity
 _COUNTRY_CODES = [
-    "US", "GB", "DE", "FR", "JP", "CA", "AU", "CH", "SG", "HK",
-    "NL", "SE", "ES", "IT", "MX", "BR", "IN", "CN", "KR", "AE",
-    "ZA", "NG", "KE", "MX", "AR", "CL", "CO",
+    "US",
+    "GB",
+    "DE",
+    "FR",
+    "JP",
+    "CA",
+    "AU",
+    "CH",
+    "SG",
+    "HK",
+    "NL",
+    "SE",
+    "ES",
+    "IT",
+    "MX",
+    "BR",
+    "IN",
+    "CN",
+    "KR",
+    "AE",
+    "ZA",
+    "NG",
+    "KE",
+    "MX",
+    "AR",
+    "CL",
+    "CO",
 ]
 
 

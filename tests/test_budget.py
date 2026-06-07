@@ -22,6 +22,7 @@ def make_budget(epsilon=3.0, noise_multiplier=1.1, n=10_000, batch=256):
 
 # ── Basic behaviour ───────────────────────────────────────────────────────────
 
+
 def test_budget_starts_at_zero():
     budget = make_budget()
     assert budget.current_epsilon() == 0.0
@@ -62,14 +63,22 @@ def test_budget_exhausted_message_contains_epsilon():
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
+
 def test_budget_summary_keys():
     budget = make_budget()
     budget.charge_step()
     summary = budget.summary()
     required_keys = {
-        "epsilon_spent", "epsilon_target", "delta",
-        "steps", "noise_multiplier", "accounting_method",
-        "max_grad_norm", "batch_size", "dataset_size", "sampling_rate",
+        "epsilon_spent",
+        "epsilon_target",
+        "delta",
+        "steps",
+        "noise_multiplier",
+        "accounting_method",
+        "max_grad_norm",
+        "batch_size",
+        "dataset_size",
+        "sampling_rate",
     }
     assert required_keys.issubset(summary.keys())
     assert summary["steps"] == 1
@@ -83,6 +92,7 @@ def test_budget_summary_sampling_rate():
 
 
 # ── Presets ───────────────────────────────────────────────────────────────────
+
 
 def test_preset_tight():
     config = BudgetConfig.from_preset("tight", dataset_size=50_000)
@@ -120,6 +130,7 @@ def test_preset_batch_size_forwarded():
 
 # ── Guard rails ───────────────────────────────────────────────────────────────
 
+
 def test_dataset_size_zero_raises():
     config = BudgetConfig(epsilon=3.0, dataset_size=0)
     with pytest.raises(ValueError, match="dataset_size"):
@@ -133,6 +144,7 @@ def test_dataset_size_negative_raises():
 
 
 # ── Noise multiplier calibration ──────────────────────────────────────────────
+
 
 def test_calibrate_noise_multiplier_returns_float():
     sigma = calibrate_noise_multiplier(
@@ -160,7 +172,7 @@ def test_calibrate_noise_multiplier_produces_target_epsilon():
     )
     # Simulate the same run and confirm actual ε is close to target
     config = BudgetConfig(
-        epsilon=target_eps + 1,   # set high so we don't halt early
+        epsilon=target_eps + 1,  # set high so we don't halt early
         delta=1e-5,
         noise_multiplier=sigma,
         batch_size=256,
@@ -172,7 +184,7 @@ def test_calibrate_noise_multiplier_produces_target_epsilon():
         budget._compose_gaussian_step()
         budget._steps += 1
     actual_eps = budget.current_epsilon()
-    assert abs(actual_eps - target_eps) < tolerance * 3   # generous bound
+    assert abs(actual_eps - target_eps) < tolerance * 3  # generous bound
 
 
 def test_calibrate_tighter_epsilon_gives_larger_sigma():

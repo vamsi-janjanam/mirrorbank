@@ -23,14 +23,11 @@ REGISTRY: dict[str, type[InstrumentSchema]] = {
 
 # Column fingerprints used by detect_instrument() — order matters (more specific first)
 _FINGERPRINTS: list[tuple[frozenset[str], str]] = [
-    (frozenset({"sec_code", "odfi_routing"}), "ach"),
     (frozenset({"sec_code"}), "ach"),
     (frozenset({"imad"}), "wire"),
-    (frozenset({"sender_token", "recipient_enrolled"}), "zelle"),
     (frozenset({"sender_token"}), "zelle"),
     (frozenset({"micr_line"}), "check"),
     (frozenset({"check_number", "payee_name"}), "check"),
-    (frozenset({"mcc_code", "cash_advance"}), "credit_card"),
     (frozenset({"mcc_code", "pin_used"}), "debit_card"),
     (frozenset({"mcc_code", "card_present"}), "credit_card"),
 ]
@@ -57,9 +54,7 @@ def get_schema(
     reg = registry or REGISTRY
     if instrument not in reg:
         available = ", ".join(sorted(reg.keys()))
-        raise ValueError(
-            f"Unknown instrument {instrument!r}. Available: {available}"
-        )
+        raise ValueError(f"Unknown instrument {instrument!r}. Available: {available}")
     return reg[instrument]()
 
 

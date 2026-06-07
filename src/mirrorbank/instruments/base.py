@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import StrEnum
 
 
-class ColumnKind(str, Enum):
+class ColumnKind(StrEnum):
     CONTINUOUS = "continuous"
     CATEGORICAL = "categorical"
     DATETIME = "datetime"
@@ -50,7 +50,8 @@ class InstrumentSchema:
         return [
             c.name
             for c in self.columns
-            if c.kind in (ColumnKind.CONTINUOUS, ColumnKind.CATEGORICAL, ColumnKind.DATETIME)
+            if c.kind
+            in (ColumnKind.CONTINUOUS, ColumnKind.CATEGORICAL, ColumnKind.DATETIME)
             and not c.is_pii
         ]
 

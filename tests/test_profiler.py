@@ -1,7 +1,6 @@
 """Tests for Stage 1 — SchemaProfiler."""
 
 import polars as pl
-import pytest
 
 from mirrorbank.instruments.ach import ACHSchema
 from mirrorbank.instruments.base import ColumnKind

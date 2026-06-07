@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from mirrorbank.instruments.base import ColumnKind, ColumnSpec, InstrumentSchema
+from mirrorbank.reference.identifiers import generate_imad
 from mirrorbank.reference.routing_numbers import generate_routing_number
 from mirrorbank.reference.swift_codes import generate_swift_code
-from mirrorbank.reference.identifiers import generate_imad
 
 
 class WireSchema(InstrumentSchema):

@@ -114,9 +114,7 @@ class ZelleSchema(InstrumentSchema):
         if "amount" in df.columns:
             over_cap = df.filter(df["amount"] > 2500).height
             if over_cap > 0:
-                errors.append(
-                    f"Zelle: {over_cap} transactions exceed $2 500 hard cap"
-                )
+                errors.append(f"Zelle: {over_cap} transactions exceed $2 500 hard cap")
         if "is_disputed" in df.columns and "dispute_reason" in df.columns:
             bad_dispute = df.filter(
                 (df["is_disputed"]) & (df["dispute_reason"].is_null())

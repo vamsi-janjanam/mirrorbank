@@ -17,17 +17,50 @@ import random
 # Real-world ABA routing prefixes grouped by Fed district.
 # These are public information (published by the ABA).
 _VALID_PREFIXES = [
-    "011", "021", "022", "026",          # Boston / New York
-    "031", "036",                         # Philadelphia
-    "041", "042", "044",                  # Cleveland
-    "051", "052", "053", "054", "055",    # Richmond
-    "061", "062", "063", "064", "065",    # Atlanta
-    "071", "072", "073", "074", "075",    # Chicago
-    "081", "082", "083", "084", "085",    # St. Louis
-    "091", "092", "096",                  # Minneapolis
-    "101", "102", "103",                  # Kansas City
-    "111", "112", "113", "114",           # Dallas
-    "121", "122", "123", "124", "125",    # San Francisco
+    "011",
+    "021",
+    "022",
+    "026",  # Boston / New York
+    "031",
+    "036",  # Philadelphia
+    "041",
+    "042",
+    "044",  # Cleveland
+    "051",
+    "052",
+    "053",
+    "054",
+    "055",  # Richmond
+    "061",
+    "062",
+    "063",
+    "064",
+    "065",  # Atlanta
+    "071",
+    "072",
+    "073",
+    "074",
+    "075",  # Chicago
+    "081",
+    "082",
+    "083",
+    "084",
+    "085",  # St. Louis
+    "091",
+    "092",
+    "096",  # Minneapolis
+    "101",
+    "102",
+    "103",  # Kansas City
+    "111",
+    "112",
+    "113",
+    "114",  # Dallas
+    "121",
+    "122",
+    "123",
+    "124",
+    "125",  # San Francisco
 ]
 
 

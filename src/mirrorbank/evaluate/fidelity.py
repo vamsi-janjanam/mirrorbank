@@ -9,21 +9,21 @@ Three tests:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import polars as pl
 from scipy.stats import ks_2samp
 
-from mirrorbank.instruments.base import ColumnKind, InstrumentSchema
+from mirrorbank.instruments.base import InstrumentSchema
 
 
 @dataclass
 class FidelityReport:
-    ks_results: dict[str, dict]         # col → {statistic, p_value, pass}
-    ks_pass_rate: float                 # fraction of columns with p > 0.05
-    corr_distance: float                # Frobenius norm
-    instrument_errors: list[str]        # from InstrumentSchema.validate()
+    ks_results: dict[str, dict]  # col → {statistic, p_value, pass}
+    ks_pass_rate: float  # fraction of columns with p > 0.05
+    corr_distance: float  # Frobenius norm
+    instrument_errors: list[str]  # from InstrumentSchema.validate()
     pass_overall: bool
 
     @property
@@ -73,6 +73,7 @@ def run_fidelity(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _ks_tests(
     real: pl.DataFrame,
     synth: pl.DataFrame,
@@ -89,7 +90,11 @@ def _ks_tests(
             if len(r) == 0 or len(s) == 0:
                 continue
             stat, p = ks_2samp(r, s)
-            results[col] = {"statistic": float(stat), "p_value": float(p), "pass": p > threshold}
+            results[col] = {
+                "statistic": float(stat),
+                "p_value": float(p),
+                "pass": p > threshold,
+            }
         except Exception:
             pass
     return results
@@ -101,17 +106,39 @@ def _correlation_distance(
     columns: list[str],
 ) -> float:
     numeric = [
-        c for c in columns
+        c
+        for c in columns
         if c in real.columns
         and c in synth.columns
-        and real[c].dtype in (pl.Float32, pl.Float64, pl.Int32, pl.Int64,
-                               pl.UInt32, pl.UInt64, pl.Int8, pl.Int16)
+        and real[c].dtype
+        in (
+            pl.Float32,
+            pl.Float64,
+            pl.Int32,
+            pl.Int64,
+            pl.UInt32,
+            pl.UInt64,
+            pl.Int8,
+            pl.Int16,
+        )
     ]
     if len(numeric) < 2:
         return 0.0
+    real_arr = real.select(numeric).fill_null(0).to_numpy().T
+    synth_arr = synth.select(numeric).fill_null(0).to_numpy().T
+    # Drop columns with zero variance in either frame — np.corrcoef divides by
+    # stddev and silently returns NaN for constant columns, which would make
+    # the Frobenius distance NaN (and thus always "fail" for the wrong reason).
+    varying = [
+        i
+        for i in range(len(numeric))
+        if real_arr[i].std() > 0 and synth_arr[i].std() > 0
+    ]
+    if len(varying) < 2:
+        return 0.0
     try:
-        C_real = np.corrcoef(real.select(numeric).fill_null(0).to_numpy().T)
-        C_synth = np.corrcoef(synth.select(numeric).fill_null(0).to_numpy().T)
+        C_real = np.corrcoef(real_arr[varying])
+        C_synth = np.corrcoef(synth_arr[varying])
         return float(np.linalg.norm(C_real - C_synth, "fro"))
     except Exception:
         return 0.0

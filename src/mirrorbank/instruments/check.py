@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from mirrorbank.instruments.base import ColumnKind, ColumnSpec, InstrumentSchema
-from mirrorbank.reference.routing_numbers import generate_routing_number
 from mirrorbank.reference.identifiers import generate_micr_line
+from mirrorbank.reference.routing_numbers import generate_routing_number
 
 
 class CheckSchema(InstrumentSchema):
@@ -93,9 +93,7 @@ class CheckSchema(InstrumentSchema):
 
     def validate(self, df) -> list[str]:
         errors: list[str] = []
-        bad = df.filter(
-            (df["is_returned"]) & (df["return_reason"].is_null())
-        ).height
+        bad = df.filter((df["is_returned"]) & (df["return_reason"].is_null())).height
         if bad > 0:
             errors.append(f"Check: {bad} returned items are missing return_reason")
         return errors

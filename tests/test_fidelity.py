@@ -1,14 +1,13 @@
 """Tests for Stage 4 — fidelity evaluation and gauntlet orchestrator."""
 
 import polars as pl
-import pytest
 
 from mirrorbank.evaluate.fidelity import run_fidelity
 from mirrorbank.evaluate.gauntlet import run_gauntlet
 from mirrorbank.instruments.ach import ACHSchema
 
-
 # ── run_fidelity ──────────────────────────────────────────────────────────────
+
 
 def test_fidelity_identical_data_passes(ach_df):
     """A dataset compared to itself should pass all fidelity checks."""
@@ -62,6 +61,7 @@ def test_fidelity_without_schema(ach_df):
 def test_fidelity_instrument_errors_propagated(wire_df):
     """Instrument validation errors are included in the fidelity report."""
     from datetime import datetime
+
     from mirrorbank.instruments.wire import WireSchema
 
     weekend_row = wire_df.head(1).with_columns(
@@ -74,6 +74,7 @@ def test_fidelity_instrument_errors_propagated(wire_df):
 
 
 # ── run_gauntlet ──────────────────────────────────────────────────────────────
+
 
 def test_gauntlet_returns_report(ach_df):
     """run_gauntlet returns a GauntletReport with the right instrument name."""

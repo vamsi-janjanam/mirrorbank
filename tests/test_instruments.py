@@ -4,7 +4,6 @@ import polars as pl
 import pytest
 
 from mirrorbank.instruments.ach import ACHSchema
-from mirrorbank.instruments.base import ColumnKind
 from mirrorbank.instruments.check import CheckSchema
 from mirrorbank.instruments.credit_card import CreditCardSchema
 from mirrorbank.instruments.debit_card import DebitCardSchema
@@ -17,8 +16,8 @@ from mirrorbank.instruments.registry import (
 from mirrorbank.instruments.wire import WireSchema
 from mirrorbank.instruments.zelle import ZelleSchema
 
-
 # ── Registry ──────────────────────────────────────────────────────────────────
+
 
 def test_all_instruments_in_registry():
     expected = {"ach", "check", "zelle", "wire", "credit_card", "debit_card"}
@@ -58,6 +57,7 @@ def test_instrument_registry_custom_registry():
 
 # ── ACH ───────────────────────────────────────────────────────────────────────
 
+
 def test_ach_has_fraud_label():
     assert ACHSchema.fraud_label == "is_fraud"
 
@@ -81,7 +81,9 @@ def test_ach_text_columns():
 def test_ach_reference_columns_have_generators():
     schema = ACHSchema()
     for col in schema.reference_columns():
-        assert col.reference_generator is not None, f"{col.name} missing reference_generator"
+        assert col.reference_generator is not None, (
+            f"{col.name} missing reference_generator"
+        )
 
 
 def test_ach_validate_catches_bad_returns(ach_df):
@@ -114,6 +116,7 @@ def test_ach_validate_rejects_zero_amount(ach_df):
 
 # ── Check ─────────────────────────────────────────────────────────────────────
 
+
 def test_check_has_fraud_label():
     assert CheckSchema.fraud_label == "is_fraud"
 
@@ -123,7 +126,7 @@ def test_check_training_columns():
     training = schema.training_columns()
     assert "amount" in training
     assert "days_to_clear" in training
-    assert "payor_account" not in training   # PII
+    assert "payor_account" not in training  # PII
 
 
 def test_check_text_columns():
@@ -136,7 +139,9 @@ def test_check_text_columns():
 def test_check_reference_columns_have_generators():
     schema = CheckSchema()
     for col in schema.reference_columns():
-        assert col.reference_generator is not None, f"{col.name} missing reference_generator"
+        assert col.reference_generator is not None, (
+            f"{col.name} missing reference_generator"
+        )
 
 
 def test_check_validate_catches_bad_returns(check_df):
@@ -160,6 +165,7 @@ def test_check_validate_passes_clean_data(check_df):
 
 # ── Wire ──────────────────────────────────────────────────────────────────────
 
+
 def test_wire_has_suspicious_label():
     assert WireSchema.fraud_label == "is_suspicious"
 
@@ -182,33 +188,41 @@ def test_wire_validate_passes_clean_data(wire_df):
 
 # ── Zelle ─────────────────────────────────────────────────────────────────────
 
+
 def test_zelle_has_disputed_label():
     assert ZelleSchema.fraud_label == "is_disputed"
 
 
 def test_zelle_validate_rejects_over_cap():
-    df = pl.DataFrame({"amount": [500.0, 2600.0, 100.0], "is_disputed": [False, False, False]})
+    df = pl.DataFrame(
+        {"amount": [500.0, 2600.0, 100.0], "is_disputed": [False, False, False]}
+    )
     errors = ZelleSchema().validate(df)
     assert any("2 500" in e or "cap" in e.lower() for e in errors)
 
 
 def test_zelle_validate_passes_under_cap():
-    df = pl.DataFrame({"amount": [50.0, 500.0, 2499.99], "is_disputed": [False, False, False]})
+    df = pl.DataFrame(
+        {"amount": [50.0, 500.0, 2499.99], "is_disputed": [False, False, False]}
+    )
     errors = ZelleSchema().validate(df)
     assert not any("cap" in e.lower() for e in errors)
 
 
 def test_zelle_validate_catches_dispute_missing_reason():
-    df = pl.DataFrame({
-        "amount": [100.0, 200.0],
-        "is_disputed": [True, False],
-        "dispute_reason": [None, None],
-    })
+    df = pl.DataFrame(
+        {
+            "amount": [100.0, 200.0],
+            "is_disputed": [True, False],
+            "dispute_reason": [None, None],
+        }
+    )
     errors = ZelleSchema().validate(df)
     assert any("dispute_reason" in e for e in errors)
 
 
 # ── Debit Card ────────────────────────────────────────────────────────────────
+
 
 def test_debit_card_has_fraud_label():
     assert DebitCardSchema.fraud_label == "is_fraud"
@@ -230,6 +244,7 @@ def test_debit_card_text_columns():
 
 # ── Credit Card ───────────────────────────────────────────────────────────────
 
+
 def test_credit_card_has_fraud_label():
     assert CreditCardSchema.fraud_label == "is_fraud"
 
@@ -249,6 +264,7 @@ def test_credit_card_text_columns():
 
 
 # ── Auto-detection ────────────────────────────────────────────────────────────
+
 
 def test_detect_ach(ach_df):
     assert detect_instrument(ach_df) == "ach"

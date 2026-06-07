@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from mirrorbank.instruments.base import ColumnKind, ColumnSpec, InstrumentSchema
-from mirrorbank.reference.routing_numbers import generate_routing_number
 from mirrorbank.reference.identifiers import generate_trace_number
+from mirrorbank.reference.routing_numbers import generate_routing_number
 
 
 class ACHSchema(InstrumentSchema):

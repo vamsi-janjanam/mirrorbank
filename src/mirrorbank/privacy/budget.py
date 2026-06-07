@@ -21,23 +21,26 @@ class BudgetExhausted(Exception):
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
+
 @dataclass
 class BudgetConfig:
-    epsilon: float              # privacy budget target (ε)
-    delta: float = 1e-5         # failure probability (δ)
-    noise_multiplier: float = 1.1   # σ — Gaussian noise std relative to clipping norm
-    max_grad_norm: float = 1.0      # C — gradient clipping norm
+    epsilon: float  # privacy budget target (ε)
+    delta: float = 1e-5  # failure probability (δ)
+    noise_multiplier: float = 1.1  # σ — Gaussian noise std relative to clipping norm
+    max_grad_norm: float = 1.0  # C — gradient clipping norm
     batch_size: int = 4096
-    dataset_size: int = 0           # N — set before training begins
+    dataset_size: int = 0  # N — set before training begins
 
     # ── Supported presets ─────────────────────────────────────────────────────
     @classmethod
-    def from_preset(cls, preset: str, dataset_size: int, batch_size: int = 4096) -> "BudgetConfig":
+    def from_preset(
+        cls, preset: str, dataset_size: int, batch_size: int = 4096
+    ) -> BudgetConfig:
         presets = {
-            "tight":    {"epsilon": 1.0,  "noise_multiplier": 1.5},
-            "balanced": {"epsilon": 3.0,  "noise_multiplier": 1.1},
-            "loose":    {"epsilon": 5.0,  "noise_multiplier": 0.9},
-            "demo":     {"epsilon": 10.0, "noise_multiplier": 0.7},
+            "tight": {"epsilon": 1.0, "noise_multiplier": 1.5},
+            "balanced": {"epsilon": 3.0, "noise_multiplier": 1.1},
+            "loose": {"epsilon": 5.0, "noise_multiplier": 0.9},
+            "demo": {"epsilon": 10.0, "noise_multiplier": 0.7},
         }
         if preset not in presets:
             raise ValueError(f"Unknown preset {preset!r}. Choose from: {list(presets)}")
@@ -49,6 +52,7 @@ class BudgetConfig:
 
 
 # ── Accountant ────────────────────────────────────────────────────────────────
+
 
 class PrivacyBudget:
     """
@@ -119,7 +123,7 @@ class PrivacyBudget:
 
         For Poisson subsampling rate q = B/N and noise multiplier σ, the RDP
         of order α is approximately bounded by:
-            ε_RDP(α) ≤ (1/α) · log(1 + q²·α(α-1)/(2σ²))   [simplified]
+            ε_RDP(α) ≤ (1/(α-1)) · log(1 + q²·α(α-1)/(2σ²))   [simplified]
 
         We use the tighter bound via the log-moment generating function.
         """
@@ -138,10 +142,13 @@ class PrivacyBudget:
         if alpha == 1:
             return q * (math.exp(1 / sigma**2) - 1)
         return min(
-            alpha / (2 * sigma**2),                         # non-subsampled bound
-            (1 / (alpha - 1)) * math.log(               # subsampled bound
+            alpha / (2 * sigma**2),  # non-subsampled bound
+            (1 / (alpha - 1))
+            * math.log(  # subsampled bound
                 1 + q**2 * alpha * (alpha - 1) / (2 * sigma**2)
-            ) if sigma > 0 else float("inf"),
+            )
+            if sigma > 0
+            else float("inf"),
         )
 
     def _rdp_to_dp(self, delta: float) -> float:
@@ -162,6 +169,7 @@ class PrivacyBudget:
 
 
 # ── Noise multiplier calibration ──────────────────────────────────────────────
+
 
 def calibrate_noise_multiplier(
     target_epsilon: float,

@@ -22,7 +22,11 @@ class DebitCardSchema(InstrumentSchema):
     fraud_label = "is_fraud"
 
     columns = [
-        ColumnSpec("amount", ColumnKind.CONTINUOUS, description="Purchase or withdrawal amount in USD"),
+        ColumnSpec(
+            "amount",
+            ColumnKind.CONTINUOUS,
+            description="Purchase or withdrawal amount in USD",
+        ),
         ColumnSpec("timestamp", ColumnKind.DATETIME),
         ColumnSpec(
             "transaction_type",
@@ -30,7 +34,12 @@ class DebitCardSchema(InstrumentSchema):
             description="'purchase', 'refund', 'atm_withdrawal', 'atm_deposit'",
         ),
         # ── Merchant / ATM ────────────────────────────────────────────────────
-        ColumnSpec("mcc_code", ColumnKind.CATEGORICAL, nullable=True, description="Null for ATM transactions"),
+        ColumnSpec(
+            "mcc_code",
+            ColumnKind.CATEGORICAL,
+            nullable=True,
+            description="Null for ATM transactions",
+        ),
         ColumnSpec("merchant_name", ColumnKind.FREE_TEXT, nullable=True),
         ColumnSpec("merchant_city", ColumnKind.CATEGORICAL),
         ColumnSpec("merchant_state", ColumnKind.CATEGORICAL),

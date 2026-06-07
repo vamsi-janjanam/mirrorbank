@@ -24,26 +24,46 @@ from mirrorbank.instruments.base import ColumnKind, InstrumentSchema
 
 _PII_KEYWORDS = frozenset(
     {
-        "name", "first_name", "last_name", "fullname",
-        "ssn", "social_security",
-        "email", "phone", "mobile", "telephone",
-        "address", "street", "zip", "postal",
-        "dob", "birth", "birthdate",
-        "account", "card", "pan", "iban",
-        "user", "customer", "member",
-        "ip", "device_id", "cookie",
+        "name",
+        "first_name",
+        "last_name",
+        "fullname",
+        "ssn",
+        "social_security",
+        "email",
+        "phone",
+        "mobile",
+        "telephone",
+        "address",
+        "street",
+        "zip",
+        "postal",
+        "dob",
+        "birth",
+        "birthdate",
+        "account",
+        "card",
+        "pan",
+        "iban",
+        "user",
+        "customer",
+        "member",
+        "ip",
+        "device_id",
+        "cookie",
     }
 )
 
 # ── Column thresholds ─────────────────────────────────────────────────────────
 
-_MAX_CATEGORICAL_UNIQUE = 200       # n_unique ≤ this → CATEGORICAL
-_MAX_CATEGORICAL_FRAC = 0.02        # n_unique/n_rows ≤ this → CATEGORICAL
-_MIN_FREE_TEXT_AVG_TOKENS = 2.5     # avg word count above this → FREE_TEXT candidate
-_MIN_IDENTIFIER_FRAC = 0.90         # n_unique/n_rows above this → IDENTIFIER
+_MAX_CATEGORICAL_UNIQUE = 200  # n_unique ≤ this → CATEGORICAL
+_MAX_CATEGORICAL_FRAC = 0.02  # n_unique/n_rows ≤ this → CATEGORICAL
+_MIN_FREE_TEXT_AVG_TOKENS = 2.5  # avg word count above this → FREE_TEXT candidate
+_MIN_IDENTIFIER_FRAC = 0.90  # n_unique/n_rows above this → IDENTIFIER
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
+
 
 @dataclass
 class ColumnProfile:
@@ -71,7 +91,8 @@ class DatasetProfile:
         return [
             c.name
             for c in self.columns
-            if c.kind in (ColumnKind.CONTINUOUS, ColumnKind.CATEGORICAL, ColumnKind.DATETIME)
+            if c.kind
+            in (ColumnKind.CONTINUOUS, ColumnKind.CATEGORICAL, ColumnKind.DATETIME)
             and not c.is_pii
         ]
 
@@ -92,6 +113,7 @@ class DatasetProfile:
 
 
 # ── Profiler ──────────────────────────────────────────────────────────────────
+
 
 class SchemaProfiler:
     """
@@ -166,8 +188,18 @@ class SchemaProfiler:
             return ColumnKind.DATETIME
 
         # Numeric types
-        if dtype in (pl.Float32, pl.Float64, pl.Int8, pl.Int16, pl.Int32, pl.Int64,
-                     pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64):
+        if dtype in (
+            pl.Float32,
+            pl.Float64,
+            pl.Int8,
+            pl.Int16,
+            pl.Int32,
+            pl.Int64,
+            pl.UInt8,
+            pl.UInt16,
+            pl.UInt32,
+            pl.UInt64,
+        ):
             if n_unique <= _MAX_CATEGORICAL_UNIQUE:
                 return ColumnKind.CATEGORICAL
             return ColumnKind.CONTINUOUS
@@ -177,15 +209,13 @@ class SchemaProfiler:
             uniq_frac = n_unique / n_rows if n_rows > 0 else 0
             if uniq_frac >= _MIN_IDENTIFIER_FRAC:
                 return ColumnKind.IDENTIFIER
-            if n_unique <= _MAX_CATEGORICAL_UNIQUE or uniq_frac <= _MAX_CATEGORICAL_FRAC:
+            if (
+                n_unique <= _MAX_CATEGORICAL_UNIQUE
+                or uniq_frac <= _MAX_CATEGORICAL_FRAC
+            ):
                 return ColumnKind.CATEGORICAL
             # Check average word count for free-text detection
-            avg_tokens = (
-                series.drop_nulls()
-                .str.split(" ")
-                .list.len()
-                .mean()
-            )
+            avg_tokens = series.drop_nulls().str.split(" ").list.len().mean()
             if avg_tokens and avg_tokens >= _MIN_FREE_TEXT_AVG_TOKENS:
                 return ColumnKind.FREE_TEXT
             return ColumnKind.CATEGORICAL

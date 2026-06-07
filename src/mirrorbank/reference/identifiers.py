@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import random
 import string
-from datetime import date, datetime
-
+from datetime import date
 
 # ── ACH trace number ─────────────────────────────────────────────────────────
+
 
 def generate_trace_number(
     routing: str | None = None,
@@ -33,6 +33,7 @@ def generate_trace_number(
 
 
 # ── Fedwire IMAD ──────────────────────────────────────────────────────────────
+
 
 def generate_imad(
     txn_date: date | None = None,
@@ -55,6 +56,7 @@ def generate_imad(
 
 
 # ── Check identifiers ─────────────────────────────────────────────────────────
+
 
 def generate_check_number(
     start: int = 1001,
@@ -90,6 +92,7 @@ def generate_micr_line(
 
 
 # ── Generic helpers ───────────────────────────────────────────────────────────
+
 
 def generate_authorization_code(rng: random.Random | None = None) -> str:
     """6-character alphanumeric authorization code for card transactions."""

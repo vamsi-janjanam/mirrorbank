@@ -1,7 +1,11 @@
 """Payment instrument schemas and registry."""
 
-from mirrorbank.instruments.registry import InstrumentRegistry, get_schema, detect_instrument
-from mirrorbank.instruments.base import InstrumentSchema, ColumnSpec, ColumnKind
+from mirrorbank.instruments.base import ColumnKind, ColumnSpec, InstrumentSchema
+from mirrorbank.instruments.registry import (
+    InstrumentRegistry,
+    detect_instrument,
+    get_schema,
+)
 
 __all__ = [
     "InstrumentRegistry",
