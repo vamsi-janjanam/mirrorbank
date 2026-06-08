@@ -42,9 +42,8 @@ all = [
     "wandb>=0.17",
 ]
 
-# Entry point declared but cli.py is not yet implemented (roadmap week 3)
-# [project.scripts]
-# mirrorbank = "mirrorbank.cli:app"
+[project.scripts]
+mirrorbank = "mirrorbank.cli:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -18,6 +18,7 @@ streamlit = ">=1.35"
 pyyaml = ">=6.0"
 # CLI output
 rich = ">=13.7"
+mirrorbank = {path = ".", editable = true}
 
 [dev-packages]
 pytest = ">=9.0"
