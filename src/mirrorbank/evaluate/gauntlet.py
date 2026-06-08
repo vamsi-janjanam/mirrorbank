@@ -1,10 +1,4 @@
-"""
-Stage 4 — Evaluation Gauntlet orchestrator.
-
-Runs fidelity, utility, and privacy tests in parallel and emits a
-unified GauntletReport.  All three batteries must pass for a release
-to be certified.
-"""
+"""Stage 4 — Evaluation Gauntlet orchestrator."""
 
 from __future__ import annotations
 
@@ -20,7 +14,6 @@ from mirrorbank.instruments.base import InstrumentSchema
 class GauntletReport:
     instrument: str
     fidelity: FidelityReport
-    # utility and privacy reports added in later weeks
     pass_overall: bool
 
     def print_summary(self) -> None:
@@ -40,7 +33,6 @@ def run_gauntlet(
     """Run all evaluation batteries and return a unified report."""
     instrument = schema.name if schema else "unknown"
 
-    # Fidelity runs synchronously for now; utility and MIA added in Week 3
     fidelity = run_fidelity(real, synth, schema=schema)
 
     return GauntletReport(

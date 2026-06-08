@@ -1,15 +1,4 @@
-"""
-Stage 1 — Schema Profiler.
-
-Reads a tabular dataset and produces a DatasetProfile that is the
-input contract for every downstream stage.  Each ColumnProfile captures:
-  - inferred column kind (continuous / categorical / datetime / free_text / identifier)
-  - PII flag
-  - per-column statistics
-
-The profiler respects any instrument schema passed in: column kinds declared
-in the schema take precedence over heuristic inference.
-"""
+"""Stage 1 — Schema Profiler (infers column kinds, PII flags, and per-column stats)."""
 
 from __future__ import annotations
 
@@ -116,13 +105,6 @@ class DatasetProfile:
 
 
 class SchemaProfiler:
-    """
-    Infers column types and statistics from a Polars DataFrame.
-
-    Usage:
-        profiler = SchemaProfiler(schema=ACHSchema())
-        profile = profiler.fit(df)
-    """
 
     def __init__(
         self,

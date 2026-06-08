@@ -1,11 +1,4 @@
-"""
-Fidelity evaluation — does synthetic data look like real data?
-
-Three tests:
-1. Per-column KS test (target: p > 0.05 for ≥ 80 % of columns)
-2. Correlation matrix distance — Frobenius norm of (C_real - C_synth) (target: < 0.15)
-3. Instrument-specific business-rule checks (e.g. wire has no weekend volume)
-"""
+"""Fidelity evaluation — KS tests, correlation distance, and instrument business-rule checks."""
 
 from __future__ import annotations
 

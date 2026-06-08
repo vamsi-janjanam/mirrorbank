@@ -1,13 +1,4 @@
-"""
-Stage 3 — Privacy Budget Accountant.
-
-Uses Rényi Differential Privacy (RDP) accounting — tighter than basic
-composition for iterative mechanisms like DP-SGD.  Training halts
-automatically when the configured ε target is reached.
-
-One PrivacyBudget instance is created per instrument per training run.
-Budgets never compose across instruments.
-"""
+"""Stage 3 — Privacy Budget Accountant (RDP accounting for DP-SGD)."""
 
 from __future__ import annotations
 
@@ -55,16 +46,6 @@ class BudgetConfig:
 
 
 class PrivacyBudget:
-    """
-    Wraps a DP-SGD training loop and tracks the cumulative (ε, δ) cost.
-
-    Usage:
-        budget = PrivacyBudget(BudgetConfig(epsilon=3.0, dataset_size=len(df)))
-        for step in training_loop:
-            budget.charge_step()   # raises BudgetExhausted when ε is exceeded
-            ...
-        cert_data = budget.summary()
-    """
 
     # RDP orders to evaluate (standard set from Mironov 2017)
     _ORDERS = list(range(2, 129)) + [256.0]

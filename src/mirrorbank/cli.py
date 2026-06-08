@@ -1,11 +1,4 @@
-"""
-Mirrorbank CLI — entry point for running the pipeline from the command line.
-
-Usage:
-    mirrorbank instruments                          # list supported payment instruments
-    mirrorbank profile <csv> [--instrument NAME]    # profile a dataset
-    mirrorbank budget --preset balanced --rows 100000  # show privacy budget config
-"""
+"""Mirrorbank CLI — instruments, profile, and budget commands."""
 
 from __future__ import annotations
 
