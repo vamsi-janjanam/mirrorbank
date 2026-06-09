@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-import io
+import sys
+from pathlib import Path
 
 import polars as pl
 import streamlit as st
+
+# Ensure `src/` is importable when run directly via `streamlit run` (not just pytest).
+_SRC_DIR = Path(__file__).resolve().parents[2]
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 st.set_page_config(
     page_title="Mirrorbank",
