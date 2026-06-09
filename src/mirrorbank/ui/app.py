@@ -44,12 +44,176 @@ PRESETS = {
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_schema, tab_profiler, tab_budget, tab_fidelity = st.tabs([
+tab_overview, tab_schema, tab_profiler, tab_budget, tab_fidelity = st.tabs([
+    "🏠 Overview",
     "🔍 Instrument Explorer",
     "📊 Data Profiler",
     "🔒 Privacy Budget",
     "📐 Fidelity Evaluation",
 ])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tab 0 — Overview
+# ═══════════════════════════════════════════════════════════════════════════════
+
+with tab_overview:
+    st.header("Welcome to Mirrorbank")
+    st.caption("Differentially private synthetic financial data generator")
+
+    st.markdown(
+        """
+Mirrorbank takes a sensitive transaction dataset (ACH, check, Zelle, wire,
+credit card, or debit card) and produces:
+
+- a **synthetic CSV** that looks and behaves like the real data,
+- a **privacy certificate** (ε/δ values + membership-inference audit result), and
+- a **utility scorecard** (statistical fidelity + fraud-model performance comparison).
+
+The goal: let teams share or model on transaction data **without exposing real
+customer records**, while proving — with numbers — that the synthetic data is
+both *safe* (low re-identification risk) and *useful* (a fraud model trained on
+it performs close to one trained on the real thing).
+        """
+    )
+
+    st.success(
+        "🚀 **Try the demo in 30 seconds — no data needed.** "
+        "Open the **📊 Data Profiler** or **📐 Fidelity Evaluation** tab and "
+        "click *“Load a built-in example”* to run the tool on bundled sample "
+        "transactions for any instrument."
+    )
+
+    st.divider()
+    st.subheader("Why this matters")
+    w1, w2, w3 = st.columns(3)
+    with w1:
+        st.markdown("**🔐 Privacy**")
+        st.markdown(
+            "Every generation run is trained under a formal "
+            "(ε, δ)-differential-privacy guarantee. The privacy budget is "
+            "tracked per instrument and never silently exceeded."
+        )
+    with w2:
+        st.markdown("**📊 Utility**")
+        st.markdown(
+            "Synthetic data is checked against the real data with statistical "
+            "tests (KS tests, correlation distance) and downstream model "
+            "performance (train-on-synthetic, test-on-real)."
+        )
+    with w3:
+        st.markdown("**🏦 Domain-aware**")
+        st.markdown(
+            "Each payment instrument has its own schema with realistic "
+            "business rules — e.g. wires have zero weekend volume, Zelle "
+            "caps transfers at $2,500."
+        )
+
+    st.divider()
+    st.subheader("How to use this app")
+    st.markdown(
+        """
+Work through the tabs left to right:
+
+1. **🔍 Instrument Explorer** — Start here. Pick a payment instrument
+   (ACH, check, Zelle, wire, credit card, debit card) and see exactly which
+   columns it expects, which are PII, and how each column gets routed
+   (structured fields → DP model, free text → vocab sampler, identifiers →
+   regenerated post-hoc).
+2. **📊 Data Profiler** — Upload your own CSV (or click *“Load a built-in
+   example”*) to see how Mirrorbank would classify each column (continuous /
+   categorical / datetime / free text / identifier), detect PII, and compute
+   summary statistics. Useful for sanity-checking a dataset *before* generation.
+3. **🔒 Privacy Budget** — Choose a privacy preset (or set ε manually),
+   enter your dataset size and training plan (batch size, epochs), and
+   calibrate the noise multiplier σ needed to hit that ε. Visualize how the
+   privacy budget gets consumed step by step.
+4. **📐 Fidelity Evaluation** — Compare a real dataset against a synthetic one
+   to run the evaluation gauntlet: per-column KS tests, correlation-matrix
+   distance, and instrument-specific business-rule checks. Bring your own pair
+   of CSVs, or click *“Load a built-in real + synthetic pair”* to try it now.
+        """
+    )
+
+    st.info(
+        "💡 No dataset of your own? Click *“Load a built-in example”* on the "
+        "Profiler or Fidelity tab. The same samples live in `data/sample/` "
+        "(regenerate with `make sample-data`) and as `tests/conftest.py` fixtures."
+    )
+
+    st.divider()
+    st.subheader("How to integrate this into your application")
+
+    st.markdown("**Option 1 — Python API**")
+    st.code(
+        """\
+from mirrorbank.instruments.registry import get_schema, detect_instrument
+from mirrorbank.profile.schema_profiler import SchemaProfiler
+from mirrorbank.privacy.budget import BudgetConfig, calibrate_noise_multiplier
+from mirrorbank.evaluate.gauntlet import run_gauntlet
+import polars as pl
+
+# 1. Profile your data
+df = pl.read_csv("transactions.csv")
+schema = get_schema("wire")  # or detect_instrument(df)
+profile = SchemaProfiler(schema=schema).fit(df)
+
+# 2. Calibrate a privacy budget for your dataset
+sigma = calibrate_noise_multiplier(
+    target_epsilon=3.0, delta=1e-5,
+    n_rows=profile.n_rows, batch_size=4096, epochs=30,
+)
+
+# 3. (once Stage 2 is implemented) generate synthetic data
+# synth_df = generate(df, schema=schema, config=BudgetConfig(epsilon=3.0, ...))
+
+# 4. Evaluate fidelity against the real data
+report = run_gauntlet(df, synth_df, schema=schema)
+report.print_summary()""",
+        language="python",
+    )
+
+    st.markdown("**Option 2 — CLI** *(scaffolded, not yet implemented)*")
+    st.code(
+        """\
+# Planned usage once src/mirrorbank/cli.py is written:
+mirrorbank profile data/transactions.csv --instrument wire
+mirrorbank generate --config configs/wire.yaml
+mirrorbank evaluate --real data/real.csv --synth outputs/synth.csv --instrument wire""",
+        language="bash",
+    )
+
+    st.markdown("**Option 3 — Config files**")
+    st.markdown(
+        "Dataset-specific hyperparameters live in `configs/*.yaml` "
+        "(`tabformer.yaml`, `ach.yaml`, `wire.yaml`, `zelle.yaml`) — "
+        "instrument, target/exclude columns, generation model + training "
+        "params, privacy epsilon/preset, and evaluation targets all live "
+        "there so runs are reproducible."
+    )
+
+    st.markdown("**Option 4 — This UI**")
+    st.markdown(
+        "Use the tabs above interactively for exploration, ad-hoc profiling, "
+        "and one-off fidelity checks — no code required."
+    )
+
+    st.divider()
+    st.subheader("Current build status")
+    status_rows = [
+        {"Stage": "1. Schema profiler", "Status": "✅ done", "Tab": "Instrument Explorer / Data Profiler"},
+        {"Stage": "2. Dual-track generation (DP-CTGAN + vocab sampler)", "Status": "🔲 not yet implemented", "Tab": "—"},
+        {"Stage": "3. Privacy budget accountant (RDP)", "Status": "✅ done", "Tab": "Privacy Budget"},
+        {"Stage": "4a. Fidelity evaluation (KS tests, correlation)", "Status": "✅ done", "Tab": "Fidelity Evaluation"},
+        {"Stage": "4b. Utility evaluation (TSTR AUC)", "Status": "🔲 not yet implemented", "Tab": "—"},
+        {"Stage": "4c. Privacy audit (shadow-model MIA)", "Status": "🔲 not yet implemented", "Tab": "—"},
+        {"Stage": "5. Release bundling (CSV + cert + scorecard)", "Status": "🔲 not yet implemented", "Tab": "—"},
+    ]
+    st.dataframe(status_rows, use_container_width=True, hide_index=True)
+    st.caption(
+        "Tabs for not-yet-implemented stages aren't shown yet — this Overview "
+        "will be updated as Stage 2 (generation) and the rest of Stage 4 land."
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -148,15 +312,52 @@ with tab_profiler:
                 key="profiler_instrument",
             )
 
+    # ── Try-it shortcut: load a built-in example ───────────────────────────────
+    with st.expander("🚀 No data? Load a built-in example", expanded=False):
+        s_col1, s_col2 = st.columns([2, 1])
+        with s_col1:
+            sample_choice = st.selectbox(
+                "Sample instrument",
+                INSTRUMENTS,
+                format_func=lambda k: INSTRUMENT_LABELS[k],
+                key="profiler_sample_instrument",
+            )
+        with s_col2:
+            st.write("")  # vertical spacer to align the button
+            if st.button("Load sample data", key="profiler_load_sample", use_container_width=True):
+                from mirrorbank.sample_data import sample_dataset
+                st.session_state["profiler_df"] = sample_dataset(sample_choice)
+                st.session_state["profiler_df_instrument"] = sample_choice
+
+    # ── Resolve the data source: upload takes priority over a loaded sample ─────
+    df = None
+    schema_name = None
+    source = None
     if uploaded:
+        df = pl.read_csv(uploaded)
+        source = "upload"
+        if use_schema:
+            schema_name = schema_choice
+    elif "profiler_df" in st.session_state:
+        df = st.session_state["profiler_df"]
+        schema_name = st.session_state.get("profiler_df_instrument")
+        source = "sample"
+
+    if df is not None:
         try:
-            df = pl.read_csv(uploaded)
-            st.success(f"Loaded {df.shape[0]:,} rows × {df.shape[1]} columns")
+            if source == "sample":
+                st.success(
+                    f"Loaded sample **{INSTRUMENT_LABELS.get(schema_name, schema_name)}** "
+                    f"data — {df.shape[0]:,} rows × {df.shape[1]} columns "
+                    f"(instrument schema applied automatically)"
+                )
+            else:
+                st.success(f"Loaded {df.shape[0]:,} rows × {df.shape[1]} columns")
 
-            from mirrorbank.profile.schema_profiler import SchemaProfiler
             from mirrorbank.instruments.registry import get_schema as _get_schema
+            from mirrorbank.profile.schema_profiler import SchemaProfiler
 
-            schema_obj = _get_schema(schema_choice) if use_schema else None
+            schema_obj = _get_schema(schema_name) if schema_name else None
             profiler = SchemaProfiler(schema=schema_obj)
 
             with st.spinner("Profiling…"):
@@ -200,7 +401,7 @@ with tab_profiler:
         except Exception as e:
             st.error(f"Profiling failed: {e}")
     else:
-        st.info("Upload a CSV to begin profiling.")
+        st.info("Upload a CSV — or load a built-in example above — to begin profiling.")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -248,7 +449,11 @@ with tab_budget:
 
         if calibrate:
             try:
-                from mirrorbank.privacy.budget import calibrate_noise_multiplier, BudgetConfig, PrivacyBudget
+                from mirrorbank.privacy.budget import (
+                    BudgetConfig,
+                    PrivacyBudget,
+                    calibrate_noise_multiplier,
+                )
 
                 with st.spinner("Binary-searching for optimal σ…"):
                     sigma = calibrate_noise_multiplier(
@@ -340,19 +545,57 @@ with tab_fidelity:
             )
         ks_threshold = st.number_input("KS p-threshold", min_value=0.01, max_value=0.20, value=0.05, step=0.01)
 
-    run_eval = st.button("Run fidelity evaluation", type="primary", disabled=not (real_file and synth_file))
+    # ── Try-it shortcut: load a built-in real + synthetic pair ─────────────────
+    with st.expander("🚀 No data? Load a built-in real + synthetic pair", expanded=False):
+        d_col1, d_col2 = st.columns([2, 1])
+        with d_col1:
+            demo_choice = st.selectbox(
+                "Sample instrument",
+                INSTRUMENTS,
+                format_func=lambda k: INSTRUMENT_LABELS[k],
+                key="fidelity_sample_instrument",
+            )
+        with d_col2:
+            st.write("")  # vertical spacer to align the button
+            if st.button("Load sample pair", key="fidelity_load_sample", use_container_width=True):
+                from mirrorbank.sample_data import sample_dataset
+                st.session_state["fidelity_real_df"] = sample_dataset(demo_choice, seed=42)
+                st.session_state["fidelity_synth_df"] = sample_dataset(demo_choice, seed=7)
+                st.session_state["fidelity_sample_instrument"] = demo_choice
 
-    if run_eval and real_file and synth_file:
+    # ── Resolve sources: uploads take priority over a loaded sample pair ───────
+    real_df = synth_df = None
+    schema_name = None
+    source = None
+    if real_file and synth_file:
+        real_df = pl.read_csv(real_file)
+        synth_df = pl.read_csv(synth_file)
+        source = "upload"
+        if use_instrument:
+            schema_name = eval_instrument
+    elif "fidelity_real_df" in st.session_state and "fidelity_synth_df" in st.session_state:
+        real_df = st.session_state["fidelity_real_df"]
+        synth_df = st.session_state["fidelity_synth_df"]
+        schema_name = st.session_state.get("fidelity_sample_instrument")
+        source = "sample"
+
+    has_pair = real_df is not None and synth_df is not None
+    run_eval = st.button("Run fidelity evaluation", type="primary", disabled=not has_pair)
+
+    if run_eval and has_pair:
         try:
-            real_df = pl.read_csv(real_file)
-            synth_df = pl.read_csv(synth_file)
-
-            st.success(f"Real: {real_df.shape[0]:,} rows  |  Synthetic: {synth_df.shape[0]:,} rows")
+            if source == "sample":
+                st.success(
+                    f"Sample **{INSTRUMENT_LABELS.get(schema_name, schema_name)}** — "
+                    f"Real: {real_df.shape[0]:,} rows  |  Synthetic: {synth_df.shape[0]:,} rows"
+                )
+            else:
+                st.success(f"Real: {real_df.shape[0]:,} rows  |  Synthetic: {synth_df.shape[0]:,} rows")
 
             from mirrorbank.evaluate.gauntlet import run_gauntlet
             from mirrorbank.instruments.registry import get_schema as _get_schema
 
-            schema_obj = _get_schema(eval_instrument) if use_instrument else None
+            schema_obj = _get_schema(schema_name) if schema_name else None
 
             with st.spinner("Running gauntlet…"):
                 report = run_gauntlet(real_df, synth_df, schema=schema_obj)
@@ -400,5 +643,8 @@ with tab_fidelity:
         except Exception as e:
             st.error(f"Evaluation failed: {e}")
 
-    elif not real_file or not synth_file:
-        st.info("Upload both a real and a synthetic CSV, then click **Run fidelity evaluation**.")
+    elif not has_pair:
+        st.info(
+            "Upload both a real and a synthetic CSV — or load a built-in pair above "
+            "— then click **Run fidelity evaluation**."
+        )

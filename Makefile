@@ -1,4 +1,4 @@
-.PHONY: install install-generate install-release test lint fmt gauntlet instruments
+.PHONY: install install-generate install-release test lint fmt gauntlet instruments sample-data ui
 
 install:
 	pipenv install
@@ -30,6 +30,10 @@ gauntlet:
 	  --real data/raw/$(DATASET)/transactions.csv \
 	  --synth outputs/$(SYNTH)/synthetic_transactions.csv \
 	  --instrument $(DATASET)
+
+# Generate example CSVs into data/sample/ (real + synthetic per instrument)
+sample-data:
+	pipenv run python scripts/generate_sample_data.py
 
 # List available instruments
 instruments:

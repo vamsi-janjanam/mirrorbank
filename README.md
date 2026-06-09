@@ -6,6 +6,8 @@ Banks and fintech teams can't share real customer data with data scientists, ven
 
 **Hero metric:** Generate 1M synthetic transactions at ε = 3 in under 10 minutes, with a fraud classifier trained on synthetic data reaching ≥ 90% of real-data AUC, and membership inference attack accuracy below 53%.
 
+> 🆕 **New here?** Read [GETTING_STARTED.md](GETTING_STARTED.md) for a plain-English tour of what works today and how to try it in 30 seconds.
+
 ---
 
 ## Supported Payment Instruments
