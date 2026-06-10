@@ -1,4 +1,4 @@
-.PHONY: install install-generate install-release test lint fmt gauntlet instruments sample-data ui
+.PHONY: install install-generate install-release test lint fmt gauntlet instruments sample-data ui generate
 
 install:
 	pipenv install
@@ -38,6 +38,10 @@ sample-data:
 # List available instruments
 instruments:
 	pipenv run python -c "from mirrorbank.instruments.registry import REGISTRY; print('\n'.join(sorted(REGISTRY)))"
+
+# Generate synthetic data via the CLI
+generate:
+	pipenv run mirrorbank generate $(CSV) --instrument $(INSTRUMENT) --rows $(ROWS)
 
 # Launch the Streamlit UI
 ui:

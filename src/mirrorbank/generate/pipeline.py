@@ -46,12 +46,25 @@ class StreamResult:
     instrument: str
 
 
-def _fit(real, schema, budget_config, seed):
+def _fit(real, schema, budget_config, seed, model="dp_statistical"):
     """Profile + fit Track A. This is where the privacy budget is charged."""
+    profile = SchemaProfiler(schema=schema).fit(real)
+
+    if model == "dp_ctgan":
+        from mirrorbank.generate.ctgan import DPCTGANGenerator
+
+        return DPCTGANGenerator(schema, budget_config, seed=seed).fit(real, profile)
+
     from mirrorbank.generate.track_a import DPTabularGenerator
 
-    profile = SchemaProfiler(schema=schema).fit(real)
     return DPTabularGenerator(schema, budget_config, seed=seed).fit(real, profile)
+
+
+def _generator_epsilon(gen) -> float:
+    """Read the privacy spend from either generator type."""
+    if hasattr(gen, "budget"):
+        return gen.budget.current_epsilon()
+    return float(getattr(gen, "epsilon", 0.0))
 
 
 def _build_chunk(gen, schema, n: int, *, seed: int, offset: int) -> pl.DataFrame:
@@ -110,16 +123,17 @@ def generate(
     n_rows: int,
     budget_config: BudgetConfig,
     seed: int = 0,
+    model: str = "dp_statistical",
 ) -> GenerationResult:
     """Run the full dual-track pipeline and return synthetic data in memory.
 
     For very large `n_rows`, prefer `generate_to_csv()` to keep memory bounded.
     """
-    gen = _fit(real, schema, budget_config, seed)
+    gen = _fit(real, schema, budget_config, seed, model=model)
     synthetic = _build_chunk(gen, schema, n_rows, seed=seed, offset=0)
     return GenerationResult(
         synthetic=synthetic,
-        epsilon_spent=gen.budget.current_epsilon(),
+        epsilon_spent=_generator_epsilon(gen),
         delta=budget_config.delta,
         n_rows=n_rows,
         instrument=schema.name,
@@ -135,6 +149,7 @@ def generate_to_csv(
     path: str,
     chunk_size: int = 1_000_000,
     seed: int = 0,
+    model: str = "dp_statistical",
 ) -> StreamResult:
     """Stream `n_rows` synthetic rows to `path` (CSV) in bounded-memory chunks.
 
@@ -146,7 +161,7 @@ def generate_to_csv(
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
 
-    gen = _fit(real, schema, budget_config, seed)
+    gen = _fit(real, schema, budget_config, seed, model=model)
 
     written = 0
     chunk_idx = 0
@@ -160,7 +175,7 @@ def generate_to_csv(
 
     return StreamResult(
         path=path,
-        epsilon_spent=gen.budget.current_epsilon(),
+        epsilon_spent=_generator_epsilon(gen),
         delta=budget_config.delta,
         n_rows=n_rows,
         instrument=schema.name,
