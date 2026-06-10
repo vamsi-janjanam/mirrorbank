@@ -28,7 +28,7 @@ Banks and fintech teams can't share real customer data with data scientists, ven
 - [Core Concept](#core-concept)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
-- [Full Dataset Setup](#full-dataset-setup)
+- [CLI](#cli)
 - [Configuration](#configuration)
 - [Running Evaluations](#running-evaluations)
 - [Privacy Dashboard](#privacy-dashboard)
@@ -58,9 +58,9 @@ Mirrorbank trains a generative model on real data and produces a *synthetic* dat
 ### What You Get Out
 
 ```
-outputs/
+outputs/release/
 ├── synthetic_transactions.csv     # Drop-in replacement for your real dataset
-├── privacy_certificate.pdf        # Formal (ε, δ) certificate + MIA audit badge
+├── privacy_certificate.html       # Formal (ε, δ) certificate + MIA audit badge
 └── utility_scorecard.html         # KS tests, TSTR AUC, correlation heatmaps
 ```
 
@@ -86,10 +86,10 @@ outputs/
  │  ┌────────────────────────────────────────────────────┐      │
  │  │  Stage 2 — Dual-Track Generator                    │      │
  │  │                                                    │      │
- │  │  Track A (DP-CTGAN → DP-TabDDPM)                   │      │
+ │  │  Track A: DP statistical (default) | DP-CTGAN     │      │
  │  │  Structured fields: amounts, timestamps,           │      │
  │  │  codes, velocity features                          │      │
- │  │  Trained with DP-SGD via Opacus                    │      │
+ │  │  DP marginals (RDP) or DP-SGD via Opacus           │      │
  │  │                                                    │      │
  │  │  Track B (Vocab Sampler)                           │      │
  │  │  Free-text fields: merchant names, memos           │      │
@@ -117,7 +117,7 @@ outputs/
  │  ┌────────────────────────────────────────────────────┐      │
  │  │  Stage 5 — Release Bundle                          │      │
  │  │  synthetic_transactions.csv                        │      │
- │  │  privacy_certificate.pdf  (ε, δ, MIA badge)        │      │
+ │  │  privacy_certificate.html (ε, δ, MIA badge)        │      │
  │  │  utility_scorecard.html   (charts + metrics)       │      │
  │  └────────────────────────────────────────────────────┘      │
  └──────────────────────────────────────────────────────────────┘
@@ -137,9 +137,13 @@ Reads the input CSV and produces a `DatasetProfile` used by all downstream stage
 
 #### Track A — Structured Fields
 
-**v1 baseline — DP-CTGAN:** CTGAN discriminator wrapped with Opacus `PrivacyEngine`. Clips per-sample gradients to norm C, adds Gaussian noise σ, charges the RDP accountant each step.
+Two interchangeable engines, selected with `--model`:
 
-**v2 upgrade — DP-TabDDPM:** Denoising diffusion model for mixed-type tabular data. Outperforms CTGAN/TVAE on fidelity and is more stable under DP-SGD (single training objective — no adversarial instability).
+**`dp_statistical` (default):** Per-column DP marginals — noisy histograms for continuous/datetime fields and noisy value-counts for categoricals, with support preservation so structural gaps (e.g. zero weekend wires) survive the noise. Fast, dependency-light (no torch), and charges the RDP accountant directly. *Limitation:* models columns independently, so cross-column correlations are not preserved — the correlation-distance fidelity check will often fail on highly-correlated schemas.
+
+**`dp_ctgan`:** A from-scratch CTGAN whose discriminator (the only network that touches real data) is wrapped with the Opacus `PrivacyEngine` — per-sample gradient clipping + Gaussian noise, charged to the RDP accountant. The generator trains normally and consumes zero budget. Preserves correlations better but needs `torch` + `opacus` and yields looser ε on small datasets.
+
+**v2 upgrade (planned) — DP-TabDDPM:** Denoising diffusion model for mixed-type tabular data. More stable under DP-SGD (single training objective — no adversarial instability).
 
 #### Track B — Free-Text Fields (Vocab Sampler)
 
@@ -182,21 +186,25 @@ Uses **Rényi Differential Privacy (RDP)** accounting — tighter than basic com
 | Instrument business rules | Zero violations (e.g. no weekend wires, Zelle ≤ $2,500) |
 
 #### Utility — TSTR (Train Synthetic, Test Real)
-Train XGBoost on synthetic data, evaluate on held-out real data. Target: `AUC_TSTR / AUC_TRTR ≥ 0.90` (instrument-specific targets in `configs/`).
+Train a RandomForest classifier on synthetic data, evaluate on held-out real data, and compare against the same model trained on real data (TRTR). Target: `AUC_TSTR / AUC_TRTR ≥ 0.90` (instrument-specific targets in `configs/`). Returns `None` when the schema has no usable fraud label or too few minority examples.
 
-#### Privacy — Shadow Model MIA
-10 shadow generative models, binary attack classifier, attack AUC reported. Target: ≤ 0.55. Implemented from scratch — no library dependency.
+#### Privacy — Membership Inference Audit
+A nearest-neighbour distance attack (`run_mia`): for each real record, its distance to the nearest synthetic record is compared against held-out reals, and the separability is scored as an attack AUC. Target: ≤ 0.55. Implemented from scratch (scikit-learn `NearestNeighbors`). This is a v1 heuristic; a full shadow-model MIA (Shokri et al. 2017) remains on the roadmap.
 
 ---
 
 ### Stage 5 — Release Bundle
 
+**Module:** `src/mirrorbank/release/bundler.py` — `bundle_release()` writes a versioned directory:
+
 ```
-release_20240315_ach_eps3_balanced/
+outputs/release/
 ├── synthetic_transactions.csv
-├── privacy_certificate.pdf    # (ε, δ), noise multiplier σ, MIA badge, CSV hash
-└── utility_scorecard.html     # KS results, TSTR chart, correlation heatmaps
+├── privacy_certificate.html   # (ε, δ), MIA audit badge, instrument, row count
+└── utility_scorecard.html     # KS results, TSTR/MIA metrics, fidelity verdict
 ```
+
+Certificates are self-contained HTML (no PDF toolchain / extra dependencies). The CLI `mirrorbank release` runs generate → evaluate → bundle in one command.
 
 ---
 
@@ -213,7 +221,7 @@ pipenv install
 # Install dev tools (pytest, ruff)
 pipenv install --dev
 
-# Run tests — all 86 should pass
+# Run tests — all 129 should pass
 pipenv run pytest
 
 # Lint the codebase
@@ -221,59 +229,63 @@ pipenv run ruff check src/ tests/
 
 # List available instruments
 make instruments
+
+# Write the bundled demo CSVs into data/sample/ (real + synthetic per instrument)
+make sample-data
+
+# Generate synthetic data end-to-end from a sample dataset
+pipenv run mirrorbank generate data/sample/ach_real.csv --instrument ach --rows 1000
+
+# Launch the Streamlit dashboard
+make ui        # or: pipenv run streamlit run src/mirrorbank/ui/app.py
 ```
 
-> **UI and CLI are on the roadmap (Week 5–6) and not yet implemented.**
-> The generation pipeline, privacy budget accountant, instrument schemas,
-> reference data generators, and evaluation gauntlet are all functional.
+> **The full pipeline is functional** — generation (`dp_statistical` default,
+> optional `dp_ctgan`), profiler, privacy accountant, evaluation gauntlet
+> (fidelity + utility + MIA), release bundler, CLI, and Streamlit UI all work.
+> `dp_ctgan` additionally requires `torch` + `opacus`
+> (`pipenv install --categories generate`).
 
 ---
 
-## Full Dataset Setup
+## CLI
 
-> **The CLI (`mirrorbank generate`) is planned for Week 3 of the roadmap and is not yet implemented.**
-> The commands below show the intended interface.
-
-### IBM TabFormer — Credit Card (default)
-
-24M credit card transactions. See `data/README.md` for download instructions.
+The `mirrorbank` console script (installed by `pipenv install`) exposes the whole
+pipeline:
 
 ```bash
-# Planned interface — CLI not yet implemented
-pipenv run python -m mirrorbank.cli generate \
-  --input data/raw/tabformer/card_transaction.v1.csv \
-  --instrument credit_card \
-  --config configs/tabformer.yaml \
-  --epsilon 3 \
-  --rows 1000000 \
-  --output outputs/tabformer_eps3
+mirrorbank instruments                       # list supported instruments
+mirrorbank profile  <csv> [-i INSTRUMENT]    # column types, PII flags, stats
+mirrorbank budget   [--preset balanced]      # show (ε, δ) + calibrated σ
+mirrorbank generate <csv> [options]          # real CSV  → synthetic CSV
+mirrorbank evaluate --real R.csv --synth S.csv   # run the gauntlet
+mirrorbank release  <csv> [options]          # generate → evaluate → bundle
 ```
 
-### ACH, Wire, Zelle
+Common `generate` / `release` options: `-i/--instrument` (auto-detected if
+omitted), `--preset {tight,balanced,loose,demo}` (default `balanced`),
+`--rows N` (default 10,000), `--model {dp_statistical,dp_ctgan}` (default
+`dp_statistical`), `--seed`, `--out` / `--out-dir`.
+
+### Examples
 
 ```bash
-# Planned interface — CLI not yet implemented
-pipenv run python -m mirrorbank.cli generate \
-  --input data/raw/ach/transactions.csv \
-  --instrument ach \
-  --config configs/ach.yaml \
-  --epsilon 3 --output outputs/ach_eps3
+# Quick synthetic ACH dataset from a committed sample
+mirrorbank generate data/sample/ach_real.csv --instrument ach --rows 5000
 
-pipenv run python -m mirrorbank.cli generate \
-  --input data/raw/wire/transactions.csv \
-  --instrument wire \
-  --config configs/wire.yaml \
-  --epsilon 3 --output outputs/wire_eps3
+# Full release bundle (CSV + privacy cert + scorecard) at ε=3
+mirrorbank release data/sample/wire_real.csv -i wire --preset balanced --rows 10000
 
-pipenv run python -m mirrorbank.cli generate \
-  --input data/raw/zelle/transactions.csv \
-  --instrument zelle \
-  --config configs/zelle.yaml \
-  --epsilon 3 --output outputs/zelle_eps3
+# Neural engine (needs torch + opacus)
+mirrorbank generate data/sample/credit_card_real.csv -i credit_card --model dp_ctgan
 ```
 
-Instrument type can also be auto-detected from column fingerprints:
-`sec_code` → ACH · `imad` → wire · `sender_token` → Zelle · `micr_line` → check
+### Full datasets
+
+For the 24M-row IBM TabFormer credit-card set, see `data/README.md` for download
+instructions, then point `generate` at the downloaded CSV. Instrument type is
+auto-detected from column fingerprints when `--instrument` is omitted:
+`sec_code` → ACH · `imad` → wire · `sender_token` → Zelle · `micr_line` → check.
 
 ---
 
@@ -315,28 +327,30 @@ evaluation:
 ## Running Evaluations
 
 ```bash
-# Run all unit tests (86 passing)
+# Run all unit tests (129 passing)
 pipenv run pytest
 
 # Lint / format
 pipenv run ruff check src/ tests/
 pipenv run ruff format src/ tests/
 
-# Full gauntlet via Makefile (requires generator output — planned Week 3)
-make gauntlet DATASET=ach SYNTH=dp_ctgan_eps3
+# Gauntlet on a real vs synthetic CSV pair (fidelity + utility + MIA)
+mirrorbank evaluate --real data/sample/wire_real.csv --synth data/sample/wire_synth.csv -i wire
 ```
 
-> Individual CLI batteries (`mirrorbank.evaluate.fidelity`, `utility`, `mia_audit`)
-> are implemented as modules but their `--` argument parsing is planned for Week 3.
-> The underlying Python functions (`run_fidelity`, `run_gauntlet`) are fully usable now.
+The underlying Python functions (`run_fidelity`, `run_utility`, `run_mia`,
+`run_gauntlet`) are also directly importable from `mirrorbank.evaluate`.
 
 ---
 
 ## Privacy Dashboard
 
-> **Planned for Week 5–6 of the roadmap.** `src/mirrorbank/ui/app.py` is not yet implemented.
+A Streamlit UI (`src/mirrorbank/ui/app.py`) wraps the pipeline with tabs for
+Overview, Generate, Schema, Profiler, Privacy Budget, and Fidelity. Every tab
+works with **zero setup** via built-in sample data, or you can upload your own
+CSV. Generation streams to disk for large row counts.
 
-**Planned run command:** `pipenv run streamlit run src/mirrorbank/ui/app.py`
+**Run:** `make ui` (or `pipenv run streamlit run src/mirrorbank/ui/app.py`)
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -360,7 +374,7 @@ make gauntlet DATASET=ach SYNTH=dp_ctgan_eps3
 │  Privacy     MIA AUC: 0.512         [  PASS  ]   ✓           │
 ├──────────────────────────────────────────────────────────────┤
 │  [Download synthetic_transactions.csv]                       │
-│  [Download privacy_certificate.pdf  ]                        │
+│  [Download privacy_certificate.html ]                        │
 │  [Download utility_scorecard.html   ]                        │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -382,7 +396,7 @@ For a 10,000-step training run, RDP gives ε ≈ 3 where basic composition gives
 DP-SGD applied to a GAN discriminator interacts badly with adversarial training instability, causing frequent collapse under tight noise budgets. Diffusion models have a single stable loss and respond predictably.
 
 ### MIA implemented from scratch
-~200 lines covering shadow models, attack classifier, and AUC reporting. Every design choice (why shadow models? why LightGBM? AUC vs accuracy?) can be whiteboarded in an interview.
+The v1 audit is a nearest-neighbour distance attack (no library beyond scikit-learn's `NearestNeighbors`): if synthetic records sit suspiciously close to specific training records, an attacker can distinguish members from non-members. Reported as an attack AUC against a held-out set. Every design choice (why distance? AUC vs accuracy? held-out calibration?) is interview-defensible; a full shadow-model MIA is the planned upgrade.
 
 ### Track B outside the privacy boundary
 Text generation is conditioned on synthetic structured fields — never on real records. The text step consumes zero privacy budget regardless of whether a vocab sampler or an LLM is used for Track B.
@@ -435,40 +449,50 @@ mirrorbank/
 │   │   └── schema_profiler.py      # SchemaProfiler → DatasetProfile
 │   │
 │   ├── privacy/                    # ✅ Implemented
-│   │   ├── budget.py               # PrivacyBudget, BudgetConfig, calibrate_noise_multiplier
-│   │   └── certificate.py          # [planned] PDF privacy certificate
+│   │   └── budget.py               # PrivacyBudget, BudgetConfig, calibrate_noise_multiplier
 │   │
-│   ├── evaluate/                   # ✅ Partially implemented
-│   │   ├── gauntlet.py             # ✅ Orchestrator (fidelity only; utility+MIA planned)
-│   │   ├── fidelity.py             # ✅ KS tests, correlation distance, instrument checks
-│   │   ├── utility.py              # [planned] TSTR with XGBoost
-│   │   └── mia_audit.py            # [planned] Shadow-model MIA
+│   ├── evaluate/                   # ✅ Implemented
+│   │   ├── gauntlet.py             # Orchestrator → fidelity + utility + MIA
+│   │   ├── fidelity.py             # KS tests, correlation distance, instrument checks
+│   │   ├── utility.py              # TSTR (RandomForest) AUC ratio
+│   │   └── mia_audit.py            # Nearest-neighbour membership inference audit
 │   │
-│   ├── generate/                   # [planned] Week 3–4
-│   │   ├── pipeline.py             # [planned] Orchestrates Track A + B
-│   │   ├── ctgan.py                # [planned] DP-CTGAN baseline
-│   │   ├── tabddpm.py              # [planned] DP-TabDDPM v2
-│   │   ├── dp_trainer.py           # [planned] Opacus DP-SGD wrapper
-│   │   └── vocab_sampler.py        # [planned] Free-text field sampler (Track B)
+│   ├── generate/                   # ✅ Implemented
+│   │   ├── pipeline.py             # generate() + generate_to_csv() (streaming); Track A + B
+│   │   ├── track_a.py              # DP statistical generator (noisy marginals) — default
+│   │   ├── ctgan.py                # DP-CTGAN (Opacus-wrapped discriminator) — optional
+│   │   └── track_b.py              # Free-text vocab sampler (synthetic seeds only)
 │   │
-│   ├── release/                    # [planned] Week 5
-│   │   ├── bundler.py              # [planned] Packages CSV + PDF + HTML
-│   │   └── scorecard.py            # [planned] HTML utility scorecard
+│   ├── release/                    # ✅ Implemented
+│   │   └── bundler.py              # bundle_release() → CSV + cert HTML + scorecard HTML
 │   │
-│   └── ui/                         # [planned] Week 5–6
-│       └── app.py                  # [planned] Streamlit dashboard
+│   ├── sample_data.py              # ✅ sample_dataset() — built-in demo data per instrument
+│   ├── cli.py                      # ✅ mirrorbank CLI (instruments/profile/budget/generate/evaluate/release)
+│   │
+│   └── ui/                         # ✅ Implemented
+│       └── app.py                  # Streamlit dashboard (sample data + upload)
 │
-├── tests/
-│   ├── conftest.py                 # Fixtures: one DataFrame per instrument (all 6)
-│   ├── test_instruments.py         # 30 tests: schemas, registry, validate(), detection
-│   ├── test_reference.py           # 15 tests: check-digit math, SWIFT, IMAD, MICR
-│   ├── test_budget.py              # 18 tests: RDP accounting, presets, calibration
-│   ├── test_profiler.py            # 4 tests: column inference, PII detection
-│   └── test_fidelity.py            # 11 tests: KS, correlation, gauntlet orchestrator
+├── scripts/
+│   └── generate_sample_data.py     # Writes data/sample/*.csv (real + synthetic per instrument)
+│
+├── tests/                          # 129 passing
+│   ├── conftest.py                 # Fixtures delegate to sample_dataset()
+│   ├── test_instruments.py         # schemas, registry, validate(), detection
+│   ├── test_reference.py           # check-digit math, SWIFT, IMAD, MICR
+│   ├── test_budget.py              # RDP accounting, presets, calibration
+│   ├── test_profiler.py            # column inference, PII detection
+│   ├── test_fidelity.py            # KS, correlation, gauntlet orchestrator
+│   ├── test_generate_tracks.py     # Track A + Track B
+│   ├── test_generate_pipeline.py   # pipeline + streaming to CSV
+│   ├── test_ctgan.py               # DP-CTGAN end-to-end (skipped without torch)
+│   ├── test_utility.py             # TSTR utility
+│   ├── test_mia.py                 # MIA audit
+│   ├── test_release.py             # release bundler
+│   └── test_cli.py                 # CLI commands
 │
 └── .github/
     └── workflows/
-        └── ci.yml                  # Lint + tests on every PR
+        └── ci.yml                  # [planned] Lint + tests on every PR
 ```
 
 ---
@@ -482,14 +506,18 @@ mirrorbank/
 | `SchemaProfiler` — column type inference + PII detection | ✅ Done |
 | `PrivacyBudget` — RDP accountant + `BudgetExhausted` + noise calibration | ✅ Done |
 | Fidelity evaluation — KS tests + correlation + instrument business rules | ✅ Done |
-| `GauntletReport` orchestrator | ✅ Done |
-| 86 passing unit tests (`pipenv run pytest`) | ✅ Done |
-| DP-CTGAN baseline — Opacus integration, end-to-end pipeline | 🔲 Next |
-| Vocab sampler (Track B) + CLI entry point | 🔲 Next |
-| TSTR utility evaluation (`utility.py`) + MIA audit (`mia_audit.py`) | 🔲 Next |
-| Streamlit UI with live ε meter | 🔲 Next |
-| Privacy certificate PDF + HTML scorecard | 🔲 Next |
+| `GauntletReport` orchestrator (fidelity + utility + MIA) | ✅ Done |
+| DP statistical generator (Track A default) + streaming to disk | ✅ Done |
+| DP-CTGAN baseline — Opacus-wrapped discriminator, end-to-end pipeline | ✅ Done |
+| Vocab sampler (Track B) — synthetic seeds, zero privacy budget | ✅ Done |
+| TSTR utility evaluation (`utility.py`) + MIA audit (`mia_audit.py`) | ✅ Done |
+| Release bundler — CSV + privacy certificate HTML + scorecard HTML | ✅ Done |
+| `mirrorbank` CLI (profile / budget / generate / evaluate / release) | ✅ Done |
+| Streamlit UI with built-in sample data + upload | ✅ Done |
+| 129 passing unit tests (`pipenv run pytest`) | ✅ Done |
+| Full shadow-model MIA (Shokri et al. 2017) | 🔲 Next |
 | DP-TabDDPM upgrade | 🔲 Next |
+| GitHub Actions CI (`.github/workflows/ci.yml`) | 🔲 Next |
 | Docker + Hugging Face Spaces deployment | 🔲 Next |
 
 ---
