@@ -44,8 +44,9 @@ PRESETS = {
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_overview, tab_schema, tab_profiler, tab_budget, tab_fidelity = st.tabs([
+tab_overview, tab_generate, tab_schema, tab_profiler, tab_budget, tab_fidelity = st.tabs([
     "🏠 Overview",
+    "✨ Generate",
     "🔍 Instrument Explorer",
     "📊 Data Profiler",
     "🔒 Privacy Budget",
@@ -214,6 +215,166 @@ mirrorbank evaluate --real data/real.csv --synth outputs/synth.csv --instrument 
         "Tabs for not-yet-implemented stages aren't shown yet — this Overview "
         "will be updated as Stage 2 (generation) and the rest of Stage 4 land."
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tab Generate — Synthetic data generation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+with tab_generate:
+    st.header("Generate Synthetic Data")
+    st.caption(
+        "Runs the Stage 2 pipeline: a DP-statistical structured-column model "
+        "(charged against a privacy budget) plus a vocab sampler for free-text "
+        "fields (zero privacy budget). Not yet the full DP-CTGAN/DP-TabDDPM "
+        "models from the roadmap."
+    )
+
+    g_col1, g_col2 = st.columns([1, 1])
+
+    with g_col1:
+        gen_instrument = st.selectbox(
+            "Payment instrument",
+            INSTRUMENTS,
+            format_func=lambda k: INSTRUMENT_LABELS[k],
+            key="generate_instrument",
+        )
+
+        data_source = st.radio(
+            "Data source",
+            ["Use built-in sample", "Upload a CSV"],
+            horizontal=True,
+            key="generate_source",
+        )
+
+        gen_upload = None
+        if data_source == "Upload a CSV":
+            gen_upload = st.file_uploader("Real dataset (CSV)", type=["csv"], key="generate_upload")
+
+    with g_col2:
+        gen_preset_key = st.selectbox(
+            "Privacy preset",
+            list(PRESETS.keys()),
+            index=1,
+            format_func=lambda k: PRESETS[k]["label"],
+            key="generate_preset",
+        )
+        n_rows = st.number_input(
+            "Rows to generate",
+            min_value=10,
+            max_value=1_000_000_000,
+            value=200,
+            step=10,
+        )
+        st.caption(
+            "Fit runs once on the real data (charges ε); sampling rows is "
+            "privacy-free, so output size is unlimited. Runs above 250k stream "
+            "to disk in chunks (~10M rows ≈ 15s, flat memory). For billions, "
+            "call `generate_to_csv(...)` from the Python API."
+        )
+
+    # ── Resolve the real dataset ────────────────────────────────────────────────
+    real_df = None
+    if data_source == "Upload a CSV":
+        if gen_upload is not None:
+            real_df = pl.read_csv(gen_upload)
+            st.session_state["generate_real_df"] = real_df
+        elif "generate_real_df" in st.session_state:
+            real_df = st.session_state["generate_real_df"]
+    else:
+        from mirrorbank.sample_data import sample_dataset
+        real_df = sample_dataset(gen_instrument)
+
+    has_real = real_df is not None
+    run_generate = st.button("Generate synthetic data", type="primary", disabled=not has_real)
+
+    if not has_real:
+        st.info("Upload a real CSV — or use the built-in sample — to enable generation.")
+
+    if run_generate and has_real:
+        try:
+            from mirrorbank.instruments.registry import get_schema as _get_schema
+            from mirrorbank.privacy.budget import BudgetConfig
+
+            schema_obj = _get_schema(gen_instrument)
+            budget_config = BudgetConfig.from_preset(gen_preset_key, dataset_size=real_df.height)
+            n = int(n_rows)
+            target_epsilon = PRESETS[gen_preset_key]["epsilon"]
+
+            def _show_metrics(eps, delta, rows):
+                m1, m2, m3 = st.columns(3)
+                m1.metric("ε spent", f"{eps:.4f}", delta=f"target {target_epsilon}")
+                m2.metric("δ", f"{delta:.0e}")
+                m3.metric("Rows generated", f"{rows:,}")
+
+            _STREAM_THRESHOLD = 250_000
+
+            if n <= _STREAM_THRESHOLD:
+                # Small enough to build and serve in memory.
+                from mirrorbank.generate.pipeline import generate
+
+                with st.spinner(f"Generating {n:,} synthetic rows…"):
+                    result = generate(real_df, schema_obj, n_rows=n, budget_config=budget_config)
+
+                st.success(
+                    f"Generated {result.n_rows:,} synthetic rows for "
+                    f"**{INSTRUMENT_LABELS[gen_instrument]}**"
+                )
+                _show_metrics(result.epsilon_spent, result.delta, result.n_rows)
+                st.subheader("Preview")
+                st.dataframe(result.synthetic.head(50).to_pandas(), use_container_width=True)
+                st.download_button(
+                    "Download CSV",
+                    result.synthetic.write_csv(),
+                    file_name=f"{gen_instrument}_synthetic.csv",
+                    mime="text/csv",
+                )
+            else:
+                # Large run — stream to disk in bounded-memory chunks.
+                import os
+                import tempfile
+
+                from mirrorbank.generate.pipeline import generate_to_csv
+
+                tmp = tempfile.NamedTemporaryFile(
+                    prefix=f"{gen_instrument}_synth_", suffix=".csv", delete=False
+                )
+                tmp.close()
+                with st.spinner(f"Streaming {n:,} synthetic rows to disk…"):
+                    res = generate_to_csv(
+                        real_df,
+                        schema_obj,
+                        n_rows=n,
+                        budget_config=budget_config,
+                        path=tmp.name,
+                        chunk_size=500_000,
+                    )
+
+                size_mb = os.path.getsize(tmp.name) / 1e6
+                st.success(
+                    f"Generated {res.n_rows:,} rows → {size_mb:,.0f} MB on disk "
+                    f"(streamed, flat memory)"
+                )
+                _show_metrics(res.epsilon_spent, res.delta, res.n_rows)
+                st.subheader("Preview (first 50 rows)")
+                st.dataframe(pl.read_csv(tmp.name, n_rows=50).to_pandas(), use_container_width=True)
+
+                if size_mb <= 500:
+                    with open(tmp.name, "rb") as fh:
+                        st.download_button(
+                            "Download CSV",
+                            fh.read(),
+                            file_name=f"{gen_instrument}_synthetic.csv",
+                            mime="text/csv",
+                        )
+                else:
+                    st.info(
+                        "File is too large to stream through the browser. "
+                        f"It's saved on disk at:\n\n`{tmp.name}`"
+                    )
+
+        except Exception as e:
+            st.error(f"Generation failed: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
