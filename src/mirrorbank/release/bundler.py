@@ -33,6 +33,8 @@ th { color: #555; font-weight: 600; width: 45%; }
 .footer { margin-top: 1.5rem; font-size: 0.8rem; color: #999; }
 """
 
+# autoescape=True: rendered fields (instrument, version, …) are HTML-escaped to
+# prevent markup/script injection into the certificate and scorecard pages.
 _CERTIFICATE_TEMPLATE = Template(
     """<!DOCTYPE html>
 <html lang="en">
@@ -71,7 +73,8 @@ _CERTIFICATE_TEMPLATE = Template(
 </div>
 </body>
 </html>
-"""
+""",
+    autoescape=True,
 )
 
 _SCORECARD_TEMPLATE = Template(
@@ -128,7 +131,8 @@ _SCORECARD_TEMPLATE = Template(
 </div>
 </body>
 </html>
-"""
+""",
+    autoescape=True,
 )
 
 

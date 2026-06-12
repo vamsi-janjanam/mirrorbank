@@ -42,6 +42,34 @@ PRESETS = {
     "demo": {"epsilon": 10.0, "noise_multiplier": 0.7, "label": "Demo (ε=10) — explore only"},
 }
 
+_MAX_UPLOAD_MB = 200
+
+
+def load_uploaded_csv(uploaded_file, label: str = "Uploaded file") -> pl.DataFrame | None:
+    """Defensively parse an `st.file_uploader` result as CSV.
+
+    Enforces a size cap, turns parse errors into friendly `st.error` messages,
+    and sanity-checks the parsed frame. Returns None on any failure.
+    """
+    if uploaded_file is None:
+        return None
+    size = getattr(uploaded_file, "size", None)
+    if size is not None and size > _MAX_UPLOAD_MB * 1024 * 1024:
+        st.error(
+            f"{label} is {size / 1e6:,.0f} MB — uploads are limited to "
+            f"{_MAX_UPLOAD_MB} MB. For larger datasets, use the Python API or CLI."
+        )
+        return None
+    try:
+        df = pl.read_csv(uploaded_file)
+    except Exception as e:
+        st.error(f"Could not parse {label} as CSV: {e}")
+        return None
+    if df.width == 0 or df.height == 0:
+        st.error(f"{label} parsed but contains no data ({df.height} rows × {df.width} columns).")
+        return None
+    return df
+
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
 tab_overview, tab_generate, tab_schema, tab_profiler, tab_budget, tab_fidelity = st.tabs([
@@ -277,8 +305,9 @@ with tab_generate:
     real_df = None
     if data_source == "Upload a CSV":
         if gen_upload is not None:
-            real_df = pl.read_csv(gen_upload)
-            st.session_state["generate_real_df"] = real_df
+            real_df = load_uploaded_csv(gen_upload, label="Real dataset")
+            if real_df is not None:
+                st.session_state["generate_real_df"] = real_df
         elif "generate_real_df" in st.session_state:
             real_df = st.session_state["generate_real_df"]
     else:
@@ -496,10 +525,11 @@ with tab_profiler:
     schema_name = None
     source = None
     if uploaded:
-        df = pl.read_csv(uploaded)
-        source = "upload"
-        if use_schema:
-            schema_name = schema_choice
+        df = load_uploaded_csv(uploaded, label="Uploaded dataset")
+        if df is not None:
+            source = "upload"
+            if use_schema:
+                schema_name = schema_choice
     elif "profiler_df" in st.session_state:
         df = st.session_state["profiler_df"]
         schema_name = st.session_state.get("profiler_df_instrument")
@@ -730,11 +760,14 @@ with tab_fidelity:
     schema_name = None
     source = None
     if real_file and synth_file:
-        real_df = pl.read_csv(real_file)
-        synth_df = pl.read_csv(synth_file)
-        source = "upload"
-        if use_instrument:
-            schema_name = eval_instrument
+        real_df = load_uploaded_csv(real_file, label="Real dataset")
+        synth_df = load_uploaded_csv(synth_file, label="Synthetic dataset")
+        if real_df is None or synth_df is None:
+            real_df = synth_df = None
+        else:
+            source = "upload"
+            if use_instrument:
+                schema_name = eval_instrument
     elif "fidelity_real_df" in st.session_state and "fidelity_synth_df" in st.session_state:
         real_df = st.session_state["fidelity_real_df"]
         synth_df = st.session_state["fidelity_synth_df"]

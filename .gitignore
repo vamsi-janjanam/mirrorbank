@@ -6,7 +6,6 @@ dist/
 build/
 .venv/
 .uv/
-uv.lock
 
 # Data — never commit real datasets
 data/raw/

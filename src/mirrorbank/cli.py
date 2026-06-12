@@ -6,6 +6,26 @@ import argparse
 import sys
 
 
+def _read_input_csv(path: str, console):
+    """Validate that *path* is an existing regular file, then read it as CSV."""
+    from pathlib import Path
+
+    import polars as pl
+
+    p = Path(path)
+    if not p.exists():
+        console.print(f"[red]Input file not found:[/red] {path}")
+        sys.exit(1)
+    if not p.is_file():
+        console.print(f"[red]Input path is not a regular file:[/red] {path}")
+        sys.exit(1)
+    try:
+        return pl.read_csv(p)
+    except Exception as e:
+        console.print(f"[red]Error reading CSV:[/red] {e}")
+        sys.exit(1)
+
+
 def cmd_instruments(_args: argparse.Namespace) -> None:
     from rich.console import Console
     from rich.table import Table
@@ -36,7 +56,6 @@ def cmd_instruments(_args: argparse.Namespace) -> None:
 
 
 def cmd_profile(args: argparse.Namespace) -> None:
-    import polars as pl
     from rich.console import Console
     from rich.table import Table
 
@@ -45,11 +64,7 @@ def cmd_profile(args: argparse.Namespace) -> None:
 
     console = Console()
 
-    try:
-        df = pl.read_csv(args.csv)
-    except Exception as e:
-        console.print(f"[red]Error reading CSV:[/red] {e}")
-        sys.exit(1)
+    df = _read_input_csv(args.csv, console)
 
     if args.instrument:
         if args.instrument not in REGISTRY:
@@ -189,7 +204,6 @@ def _resolve_schema(df, args, console):
 def cmd_generate(args: argparse.Namespace) -> None:
     from pathlib import Path
 
-    import polars as pl
     from rich.console import Console
 
     from mirrorbank.generate.pipeline import generate, generate_to_csv
@@ -197,17 +211,17 @@ def cmd_generate(args: argparse.Namespace) -> None:
 
     console = Console()
 
-    try:
-        df = pl.read_csv(args.csv)
-    except Exception as e:
-        console.print(f"[red]Error reading CSV:[/red] {e}")
-        sys.exit(1)
+    df = _read_input_csv(args.csv, console)
 
     instrument_name, schema = _resolve_schema(df, args, console)
     budget_config = BudgetConfig.from_preset(args.preset, dataset_size=df.height)
 
     out = args.out or f"outputs/{instrument_name}_synthetic.csv"
-    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    out_file = Path(out).resolve()
+    if out_file.is_dir():
+        console.print(f"[red]Output path is an existing directory:[/red] {out}")
+        sys.exit(1)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
 
     if args.out and args.rows > 100_000:
         result = generate_to_csv(
@@ -233,19 +247,14 @@ def cmd_generate(args: argparse.Namespace) -> None:
 
 
 def cmd_evaluate(args: argparse.Namespace) -> None:
-    import polars as pl
     from rich.console import Console
 
     from mirrorbank.evaluate.gauntlet import run_gauntlet
 
     console = Console()
 
-    try:
-        real = pl.read_csv(args.real)
-        synth = pl.read_csv(args.synth)
-    except Exception as e:
-        console.print(f"[red]Error reading CSV:[/red] {e}")
-        sys.exit(1)
+    real = _read_input_csv(args.real, console)
+    synth = _read_input_csv(args.synth, console)
 
     _instrument_name, schema = _resolve_schema(real, args, console)
 
@@ -254,7 +263,8 @@ def cmd_evaluate(args: argparse.Namespace) -> None:
 
 
 def cmd_release(args: argparse.Namespace) -> None:
-    import polars as pl
+    from pathlib import Path
+
     from rich.console import Console
 
     from mirrorbank.evaluate.gauntlet import run_gauntlet
@@ -263,10 +273,12 @@ def cmd_release(args: argparse.Namespace) -> None:
 
     console = Console()
 
-    try:
-        real = pl.read_csv(args.csv)
-    except Exception as e:
-        console.print(f"[red]Error reading CSV:[/red] {e}")
+    real = _read_input_csv(args.csv, console)
+
+    out_dir = args.out_dir or "outputs/release"
+    out_dir_path = Path(out_dir).resolve()
+    if out_dir_path.exists() and not out_dir_path.is_dir():
+        console.print(f"[red]Output directory path exists and is not a directory:[/red] {out_dir}")
         sys.exit(1)
 
     instrument_name, schema = _resolve_schema(real, args, console)
@@ -280,7 +292,6 @@ def cmd_release(args: argparse.Namespace) -> None:
 
     from mirrorbank.release.bundler import bundle_release
 
-    out_dir = args.out_dir or "outputs/release"
     bundle = bundle_release(
         result.synthetic,
         instrument=instrument_name,

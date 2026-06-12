@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      # ruff is not a declared dev dep; run it as an isolated tool
+      - name: Ruff lint
+        run: uvx ruff check src/ tests/
+      - name: Ruff format check
+        run: uvx ruff format --check src/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      # Installs project + dev group (pytest). Heavy optional extras
+      # (torch/opacus/sdv) are NOT installed; tests guard them with
+      # pytest.importorskip("torch") and skip cleanly.
+      - name: Install dependencies
+        run: uv sync
+      - name: Run tests
+        run: uv run pytest
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - name: Export pinned requirements from lockfile
+        run: uv export --no-hashes --no-emit-project --format requirements-txt -o requirements-audit.txt
+      - name: Audit dependencies (pip-audit)
+        run: uvx pip-audit -r requirements-audit.txt --no-deps --disable-pip
+      - name: Static security scan (bandit, medium+ severity)
+        run: uvx bandit -r src/ -ll

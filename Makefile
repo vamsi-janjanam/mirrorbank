@@ -1,4 +1,4 @@
-.PHONY: install install-generate install-release test lint fmt gauntlet instruments sample-data ui generate
+.PHONY: install install-generate install-release test lint fmt gauntlet instruments sample-data ui generate audit hooks
 
 install:
 	pipenv install
@@ -46,3 +46,13 @@ generate:
 # Launch the Streamlit UI
 ui:
 	pipenv run streamlit run src/mirrorbank/ui/app.py
+
+# Security audit: dependency CVEs (pip-audit) + static analysis (bandit, medium+ severity)
+audit:
+	uv export --no-hashes --no-emit-project --format requirements-txt -o /tmp/mirrorbank-requirements-audit.txt
+	uvx pip-audit -r /tmp/mirrorbank-requirements-audit.txt --no-deps --disable-pip
+	uvx bandit -r src/ -ll
+
+# Install pre-commit hooks (ruff, secrets scanning, large-file guard)
+hooks:
+	uvx pre-commit install
