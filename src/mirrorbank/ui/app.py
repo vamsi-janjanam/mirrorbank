@@ -332,46 +332,47 @@ with tab_generate:
             else:
                 # Large run — stream to disk in bounded-memory chunks.
                 import os
-                import tempfile
+                from datetime import datetime
 
                 from mirrorbank.generate.pipeline import generate_to_csv
 
-                tmp = tempfile.NamedTemporaryFile(
-                    prefix=f"{gen_instrument}_synth_", suffix=".csv", delete=False
-                )
-                tmp.close()
+                out_dir = Path("outputs")
+                out_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                out_path = out_dir / f"{gen_instrument}_synthetic_{timestamp}.csv"
+
                 with st.spinner(f"Streaming {n:,} synthetic rows to disk…"):
                     res = generate_to_csv(
                         real_df,
                         schema_obj,
                         n_rows=n,
                         budget_config=budget_config,
-                        path=tmp.name,
+                        path=str(out_path),
                         chunk_size=500_000,
                     )
 
-                size_mb = os.path.getsize(tmp.name) / 1e6
+                size_mb = os.path.getsize(out_path) / 1e6
                 st.success(
                     f"Generated {res.n_rows:,} rows → {size_mb:,.0f} MB on disk "
                     f"(streamed, flat memory)"
                 )
                 _show_metrics(res.epsilon_spent, res.delta, res.n_rows)
                 st.subheader("Preview (first 50 rows)")
-                st.dataframe(pl.read_csv(tmp.name, n_rows=50).to_pandas(), use_container_width=True)
+                st.dataframe(pl.read_csv(out_path, n_rows=50).to_pandas(), use_container_width=True)
 
                 if size_mb <= 500:
-                    with open(tmp.name, "rb") as fh:
+                    with open(out_path, "rb") as fh:
                         st.download_button(
                             "Download CSV",
                             fh.read(),
-                            file_name=f"{gen_instrument}_synthetic.csv",
+                            file_name=out_path.name,
                             mime="text/csv",
                         )
                 else:
-                    st.info(
-                        "File is too large to stream through the browser. "
-                        f"It's saved on disk at:\n\n`{tmp.name}`"
-                    )
+                    st.info("File is too large to stream through the browser.")
+
+                st.caption("Saved to:")
+                st.code(str(out_path.resolve()), language=None)
 
         except Exception as e:
             st.error(f"Generation failed: {e}")
